@@ -76,14 +76,14 @@ for cluster_id in unique_clusters:
 n_clusters = len(set(df['cluster'])) - (1 if -1 in df['cluster'] else 0)
 print(f"Nombre de clusters trouvés : {n_clusters}")
 
-# Générer des couleurs aléatoires pour chaque cluster avec une meilleure distribution
+# Générer des couleurs aléatoires pour chaque cluster
 colors = []
 for i in range(n_clusters):
     hue = i / n_clusters
     rgb = colorsys.hsv_to_rgb(hue, 0.8, 0.8)
     color = '#{:02x}{:02x}{:02x}'.format(int(rgb[0]*255), int(rgb[1]*255), int(rgb[2]*255))
     colors.append(color)
-# Ajouter une couleur grise pour les points de bruit
+# Ajouter une couleur grise pour les points de bruiti
 colors = ['#808080'] + colors
 
 # Créer une carte centrée sur la moyenne des coordonnées
@@ -133,19 +133,23 @@ for idx, row in df.iterrows():
     
     # Créer le popup avec le lien HTML et un style pour une largeur fixe
     popup_content = f"""
-    <div style="min-width: 100px;">
+    <div style="min-width: 200px;">
     Cluster: {cluster_name}<br>
     <a href="{flickr_link}" target="_blank">Voir la photo sur Flickr</a>
     </div>
     """
     
+    # Ajuster la taille et l'opacité selon que le point est dans un cluster ou non
+    radius = 5 if row['cluster'] >= 0 else 3
+    opacity = 0.7 if row['cluster'] >= 0 else 0.15
+    
     folium.CircleMarker(
         location=[row['lat'], row['long']],
-        radius=5,
+        radius=radius,  # Plus petit pour les points non clusterisés
         color=colors[color_idx],
         fill=True,
         popup=popup_content,
-        fill_opacity=0.7 if row['cluster'] >= 0 else 0.3
+        fill_opacity=opacity  # Plus transparent pour les points non clusterisés
     ).add_to(carte)
 
 # Sauvegarder la carte en HTML
