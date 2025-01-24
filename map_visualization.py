@@ -36,7 +36,7 @@ def main():
     print("Tags les plus communs exclus:", common_tags)
 
     # Ajouter ces tags communs à la liste des mots exclus
-    mots_exclus = ['unknown', 'lyon', '', 'france', 'europe','nuit','streetphotography','french']
+    mots_exclus = ['unknown', 'lyon', '', 'france', 'europe','nuit','streetphotography','french','creative','basilique','wheatpaste']
     
     # Si l'option est activée et qu'un tag de recherche est présent, ne pas l'exclure
     search_term = getattr(df, 'search_term', None)

@@ -21,7 +21,8 @@ class DataMiningInterface:
             'n_points': "10000",
             'n_common_tags': "100",
             'data_file': "flickr_data_cleaned.csv",
-            'algo': "DBSCAN"
+            'algo': "DBSCAN",
+            'display_points': "10000"
         }
         
         # Variables pour les paramètres
@@ -34,6 +35,7 @@ class DataMiningInterface:
         self.algo_var = tk.StringVar(value=self.default_values['algo'])
         self.search_var = tk.StringVar()
         self.keep_search_tag_var = tk.BooleanVar(value=False)
+        self.display_points_var = tk.StringVar(value=self.default_values['display_points'])
         
         # Création des widgets dans le bon ordre
         self.create_file_frame()
@@ -86,45 +88,106 @@ class DataMiningInterface:
         ttk.Label(params_frame, text="Algorithme:").grid(row=0, column=0, sticky="w")
         algo_combo = ttk.Combobox(params_frame, textvariable=self.algo_var, 
                                 values=["DBSCAN", "K-means"], state="readonly")
-        algo_combo.grid(row=0, column=1, padx=5)
+        algo_combo.grid(row=0, column=1, padx=5, columnspan=2)
         algo_combo.bind('<<ComboboxSelected>>', self.on_algo_change)
         
         # Frame pour les paramètres DBSCAN
         self.dbscan_frame = ttk.Frame(params_frame)
-        self.dbscan_frame.grid(row=1, column=0, columnspan=2, pady=5)
+        self.dbscan_frame.grid(row=1, column=0, columnspan=3, pady=5)
         
+        # Epsilon avec champ de texte
         ttk.Label(self.dbscan_frame, text="Epsilon:").grid(row=0, column=0, sticky="w")
         ttk.Entry(self.dbscan_frame, textvariable=self.eps_var, width=10).grid(row=0, column=1, padx=5)
         
+        # Min Samples avec champ de texte
         ttk.Label(self.dbscan_frame, text="Min Samples:").grid(row=1, column=0, sticky="w")
         ttk.Entry(self.dbscan_frame, textvariable=self.min_samples_var, width=10).grid(row=1, column=1, padx=5)
         
         # Frame pour les paramètres K-means
         self.kmeans_frame = ttk.Frame(params_frame)
-        self.kmeans_frame.grid(row=1, column=0, columnspan=2, pady=5)
+        self.kmeans_frame.grid(row=1, column=0, columnspan=3, pady=5)
         
+        # Nombre de clusters avec slider
         ttk.Label(self.kmeans_frame, text="Nombre de clusters:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(self.kmeans_frame, textvariable=self.n_clusters_var, width=10).grid(row=0, column=1, padx=5)
+        n_clusters_scale = ttk.Scale(self.kmeans_frame,
+                                   from_=2,
+                                   to=50,
+                                   orient="horizontal",
+                                   length=200,
+                                   command=lambda v: self.update_n_clusters(v))
+        n_clusters_scale.grid(row=0, column=1, padx=5, sticky="ew")
+        n_clusters_scale.set(int(self.default_values['n_clusters']))
+        self.n_clusters_label = ttk.Label(self.kmeans_frame, text=self.default_values['n_clusters'])
+        self.n_clusters_label.grid(row=0, column=2, padx=5)
         
-        # Ajout des paramètres pour la méthode du coude
-        ttk.Label(self.kmeans_frame, text="Plage k min:").grid(row=1, column=0, sticky="w")
-        self.k_min_var = tk.StringVar(value="2")
-        ttk.Entry(self.kmeans_frame, textvariable=self.k_min_var, width=10).grid(row=1, column=1, padx=5)
+        # Paramètres pour la méthode du coude
+        ttk.Label(self.kmeans_frame, text="Plage k:").grid(row=1, column=0, sticky="w")
+        k_range_frame = ttk.Frame(self.kmeans_frame)
+        k_range_frame.grid(row=1, column=1, columnspan=2, sticky="ew")
         
-        ttk.Label(self.kmeans_frame, text="Plage k max:").grid(row=2, column=0, sticky="w")
-        self.k_max_var = tk.StringVar(value="20")
-        ttk.Entry(self.kmeans_frame, textvariable=self.k_max_var, width=10).grid(row=2, column=1, padx=5)
+        self.k_min_scale = ttk.Scale(k_range_frame,
+                                    from_=2,
+                                    to=20,
+                                    orient="horizontal",
+                                    length=95,
+                                    command=lambda v: self.update_k_min(v))
+        self.k_min_scale.grid(row=0, column=0, padx=(0,5))
+        self.k_min_scale.set(2)
         
-        # Paramètres communs
-        ttk.Label(params_frame, text="Nombre de points:").grid(row=2, column=0, sticky="w")
-        ttk.Entry(params_frame, textvariable=self.n_points_var, width=10).grid(row=2, column=1, padx=5)
+        self.k_max_scale = ttk.Scale(k_range_frame,
+                                    from_=2,
+                                    to=50,
+                                    orient="horizontal",
+                                    length=95,
+                                    command=lambda v: self.update_k_max(v))
+        self.k_max_scale.grid(row=0, column=1, padx=(5,0))
+        self.k_max_scale.set(20)
         
-        ttk.Label(params_frame, text="Tags communs à exclure:").grid(row=3, column=0, sticky="w")
-        ttk.Entry(params_frame, textvariable=self.n_common_tags_var, width=10).grid(row=3, column=1, padx=5)
+        self.k_range_label = ttk.Label(self.kmeans_frame, text="2-20")
+        self.k_range_label.grid(row=1, column=2, padx=5)
+        
+        # Nombre de points pour le clustering avec slider
+        ttk.Label(params_frame, text="Nombre de points pour clustering:").grid(row=2, column=0, sticky="w")
+        n_points_scale = ttk.Scale(params_frame,
+                                 from_=1000,
+                                 to=200000,
+                                 orient="horizontal",
+                                 length=200,
+                                 command=lambda v: self.update_n_points(v))
+        n_points_scale.grid(row=2, column=1, padx=5, sticky="ew")
+        n_points_scale.set(int(self.default_values['n_points']))
+        self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
+        self.n_points_label.grid(row=2, column=2, padx=5)
+        
+        # Nombre de points à afficher avec slider
+        ttk.Label(params_frame, text="Nombre de points à afficher:").grid(row=3, column=0, sticky="w")
+        display_points_scale = ttk.Scale(params_frame,
+                                       from_=1000,
+                                       to=50000,
+                                       orient="horizontal",
+                                       length=200,
+                                       command=lambda v: self.update_display_points(v))
+        display_points_scale.grid(row=3, column=1, padx=5, sticky="ew")
+        display_points_scale.set(int(self.default_values['display_points']))
+        self.display_points_label = ttk.Label(params_frame, text=self.default_values['display_points'])
+        self.display_points_label.grid(row=3, column=2, padx=5)
+        
+        # Tags communs avec slider
+        ttk.Label(params_frame, text="Tags communs à exclure:").grid(row=4, column=0, sticky="w")
+        n_common_tags_scale = ttk.Scale(params_frame,
+                                      from_=0,
+                                      to=200,
+                                      orient="horizontal",
+                                      length=200,
+                                      command=lambda v: self.update_n_common_tags(v))
+        n_common_tags_scale.grid(row=4, column=1, padx=5, sticky="ew")
+        n_common_tags_scale.set(int(self.default_values['n_common_tags']))
+        self.n_common_tags_label = ttk.Label(params_frame, text=self.default_values['n_common_tags'])
+        self.n_common_tags_label.grid(row=4, column=2, padx=5)
         
         # Bouton de réinitialisation
         ttk.Button(params_frame, text="Réinitialiser les paramètres", 
-                  command=self.reset_to_defaults).grid(row=4, column=0, columnspan=2, pady=10)
+                  command=self.reset_to_defaults).grid(row=5, column=0, columnspan=3, pady=10)
         
         # Afficher les paramètres de l'algorithme sélectionné
         self.on_algo_change(None)
@@ -175,6 +238,7 @@ class DataMiningInterface:
         self.n_common_tags_var.set(self.default_values['n_common_tags'])
         self.data_file_path.set(self.default_values['data_file'])
         self.algo_var.set(self.default_values['algo'])
+        self.display_points_var.set(self.default_values['display_points'])
         messagebox.showinfo("Réinitialisation", "Les paramètres ont été réinitialisés aux valeurs par défaut.")
         
     def select_file(self):
@@ -199,9 +263,8 @@ class DataMiningInterface:
                 messagebox.showerror("Erreur", "Le fichier de données n'existe pas!")
                 return
                 
-            # Chargement et préparation des données
+            # Chargement de toutes les données
             df = pd.read_csv(self.data_file_path.get(), low_memory=False)
-            df = df.head(int(self.n_points_var.get()))
             
             # Appliquer le filtre de tag si un tag est spécifié
             search_term = self.search_var.get().lower().strip()
@@ -216,22 +279,47 @@ class DataMiningInterface:
                 df.search_term = search_term
                 df.keep_search_tag = self.keep_search_tag_var.get()
             
-            # Mise à jour des variables globales
-            map_visualization.df = df
-            
-            # Configuration de l'algorithme choisi
+            # Faire le clustering sur tous les points
             if self.algo_var.get() == "DBSCAN":
-                map_visualization.clustering_algo = DBSCAN(
+                clustering_algo = DBSCAN(
                     eps=float(self.eps_var.get()),
                     min_samples=int(self.min_samples_var.get())
                 )
             else:
-                map_visualization.clustering_algo = KMeans(
+                clustering_algo = KMeans(
                     n_clusters=min(int(self.n_clusters_var.get()), len(df)),
                     random_state=42
                 )
             
-            # Mise à jour du nombre de tags communs
+            # Appliquer le clustering sur tous les points
+            df['cluster'] = clustering_algo.fit_predict(df[['lat', 'long']].values)
+            
+            # Sélectionner un échantillon aléatoire pour l'affichage si nécessaire
+            max_display_points = int(self.display_points_var.get())
+            if len(df) > max_display_points:
+                # Échantillonnage stratifié par cluster pour maintenir la distribution
+                display_df = pd.DataFrame()
+                for cluster in df['cluster'].unique():
+                    cluster_data = df[df['cluster'] == cluster]
+                    # Calculer le nombre de points à prendre de ce cluster
+                    n_points = int(max_display_points * (len(cluster_data) / len(df)))
+                    if n_points > 0:  # S'assurer qu'on prend au moins 1 point
+                        sampled = cluster_data.sample(n=min(n_points, len(cluster_data)), 
+                                                    random_state=42)
+                        display_df = pd.concat([display_df, sampled])
+                
+                # S'assurer qu'on a exactement max_display_points
+                if len(display_df) < max_display_points:
+                    remaining = max_display_points - len(display_df)
+                    additional = df[~df.index.isin(display_df.index)].sample(n=remaining, 
+                                                                           random_state=42)
+                    display_df = pd.concat([display_df, additional])
+            else:
+                display_df = df
+            
+            # Mise à jour des variables globales pour l'affichage
+            map_visualization.df = display_df
+            map_visualization.clustering_algo = clustering_algo
             map_visualization.N = int(self.n_common_tags_var.get())
             
             # Exécution de la génération de carte
@@ -240,9 +328,11 @@ class DataMiningInterface:
             # Message de succès avec info sur le filtrage si un tag était spécifié
             if search_term:
                 messagebox.showinfo("Succès", 
-                    f"La carte a été générée avec {len(df)} points contenant le tag '{search_term}'!")
+                    f"La carte a été générée avec {len(display_df)} points affichés sur {len(df)} points "
+                    f"contenant le tag '{search_term}'!")
             else:
-                messagebox.showinfo("Succès", "La carte a été générée avec succès!")
+                messagebox.showinfo("Succès", 
+                    f"La carte a été générée avec {len(display_df)} points affichés sur {len(df)} points au total!")
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
@@ -256,8 +346,8 @@ class DataMiningInterface:
                 return
             
             # Vérifier les valeurs de k_min et k_max
-            k_min = int(self.k_min_var.get())
-            k_max = int(self.k_max_var.get())
+            k_min = int(self.k_min_scale.get())
+            k_max = int(self.k_max_scale.get())
             
             if k_min < 2:
                 messagebox.showerror("Erreur", "k_min doit être supérieur ou égal à 2!")
@@ -374,6 +464,56 @@ class DataMiningInterface:
         """Applique le tag suggéré à la barre de recherche et lance la recherche"""
         self.search_var.set(tag)
         self.filter_by_tag()
+
+    def update_eps(self, value):
+        """Met à jour la valeur d'epsilon"""
+        val = float(float(value))
+        self.eps_var.set(f"{val:.6f}")
+
+    def update_min_samples(self, value):
+        """Met à jour la valeur de min_samples"""
+        val = int(float(value))
+        self.min_samples_var.set(str(val))
+
+    def update_n_clusters(self, value):
+        """Met à jour le nombre de clusters"""
+        val = int(float(value))
+        self.n_clusters_var.set(str(val))
+        self.n_clusters_label.config(text=str(val))
+
+    def update_k_min(self, value):
+        """Met à jour k_min"""
+        val = int(float(value))
+        self.k_min_var.set(str(val))
+        if val >= int(self.k_max_scale.get()):
+            self.k_max_scale.set(val + 1)
+        self.k_range_label.config(text=f"{val}-{self.k_max_scale.get()}")
+
+    def update_k_max(self, value):
+        """Met à jour k_max"""
+        val = int(float(value))
+        self.k_max_var.set(str(val))
+        if val <= int(self.k_min_scale.get()):
+            self.k_min_scale.set(val - 1)
+        self.k_range_label.config(text=f"{self.k_min_scale.get()}-{val}")
+
+    def update_n_points(self, value):
+        """Met à jour le nombre de points"""
+        val = int(float(value))
+        self.n_points_var.set(str(val))
+        self.n_points_label.config(text=str(val))
+
+    def update_n_common_tags(self, value):
+        """Met à jour le nombre de tags communs"""
+        val = int(float(value))
+        self.n_common_tags_var.set(str(val))
+        self.n_common_tags_label.config(text=str(val))
+
+    def update_display_points(self, value):
+        """Met à jour le nombre de points à afficher"""
+        val = int(float(value))
+        self.display_points_var.set(str(val))
+        self.display_points_label.config(text=str(val))
 
 def main():
     root = tk.Tk()
