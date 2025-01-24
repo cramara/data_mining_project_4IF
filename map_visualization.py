@@ -37,7 +37,17 @@ def main():
 
     # Ajouter ces tags communs à la liste des mots exclus
     mots_exclus = ['unknown', 'lyon', '', 'france', 'europe','nuit','streetphotography','french']
-    mots_exclus.extend(common_tags)
+    
+    # Si l'option est activée et qu'un tag de recherche est présent, ne pas l'exclure
+    search_term = getattr(df, 'search_term', None)
+    keep_search_tag = getattr(df, 'keep_search_tag', False)
+    
+    if keep_search_tag and search_term:
+        # Ne pas ajouter le tag recherché aux mots exclus
+        mots_exclus.extend(tag for tag in common_tags if tag != search_term)
+    else:
+        mots_exclus.extend(common_tags)
+    
     print("Mots exclus:", mots_exclus)
 
     # Trouver le tag le plus représentatif pour chaque cluster

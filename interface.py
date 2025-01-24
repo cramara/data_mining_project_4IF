@@ -32,6 +32,8 @@ class DataMiningInterface:
         self.n_common_tags_var = tk.StringVar(value=self.default_values['n_common_tags'])
         self.data_file_path = tk.StringVar(value=self.default_values['data_file'])
         self.algo_var = tk.StringVar(value=self.default_values['algo'])
+        self.search_var = tk.StringVar()
+        self.keep_search_tag_var = tk.BooleanVar(value=False)
         
         # Création des widgets dans le bon ordre
         self.create_file_frame()
@@ -42,14 +44,39 @@ class DataMiningInterface:
         file_frame = ttk.LabelFrame(self.root, text="Sélection des données", padding="10")
         file_frame.grid(row=0, column=0, padx=10, pady=5, sticky="nsew")
         
+        # Frame pour la recherche et suggestions
+        search_frame = ttk.Frame(file_frame)
+        search_frame.grid(row=0, column=0, columnspan=3, pady=5)
+        
+        # Barre de recherche
+        ttk.Label(search_frame, text="Rechercher par tag:").grid(row=0, column=0, sticky="w")
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        search_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Button(search_frame, text="Rechercher", command=self.filter_by_tag).grid(row=0, column=2, padx=5)
+        
+        # Suggestions de tags
+        suggestions_frame = ttk.Frame(search_frame)
+        suggestions_frame.grid(row=1, column=0, columnspan=3, pady=2)
+        
+        ttk.Label(suggestions_frame, text="Suggestions:").grid(row=0, column=0, padx=2)
+        
+        suggestions = ["fete des lumieres", "insa", "bellecour", "confluence"]
+        for i, tag in enumerate(suggestions):
+            ttk.Button(suggestions_frame, text=tag, 
+                      command=lambda t=tag: self.apply_suggestion(t)).grid(row=0, column=i+1, padx=2)
+        
+        # Case à cocher pour conserver le tag recherché
+        ttk.Checkbutton(file_frame, text="Retirer recherché de la liste des tags exclus", 
+                       variable=self.keep_search_tag_var).grid(row=1, column=0, columnspan=3, pady=2)
+        
         # Affichage du chemin du fichier
         self.file_label = ttk.Label(file_frame, textvariable=self.data_file_path, 
                                   wraplength=300)
-        self.file_label.grid(row=0, column=0, columnspan=2, pady=5)
+        self.file_label.grid(row=2, column=0, columnspan=3, pady=5)
         
         # Bouton pour sélectionner le fichier
         ttk.Button(file_frame, text="Choisir un fichier", 
-                  command=self.select_file).grid(row=1, column=0, pady=5)
+                  command=self.select_file).grid(row=3, column=0, columnspan=3, pady=5)
         
     def create_parameters_frame(self):
         params_frame = ttk.LabelFrame(self.root, text="Paramètres", padding="10")
@@ -118,17 +145,22 @@ class DataMiningInterface:
         actions_frame = ttk.LabelFrame(self.root, text="Actions", padding="10")
         actions_frame.grid(row=2, column=0, padx=10, pady=5, sticky="nsew")
         
+        # Frame pour centrer les boutons
+        buttons_frame = ttk.Frame(actions_frame)
+        buttons_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Configurer le gestionnaire de grille pour centrer
+        actions_frame.columnconfigure(0, weight=1)
+        buttons_frame.columnconfigure(0, weight=1)
+        
         # Boutons communs
-        ttk.Button(actions_frame, text="Générer la carte", 
+        ttk.Button(buttons_frame, text="Générer la carte", 
                   command=self.generate_map).grid(row=0, column=0, pady=5)
         
         # Boutons spécifiques aux algorithmes
-        self.dbscan_button = ttk.Button(actions_frame, text="Analyser paramètres DBSCAN", 
-                                       command=self.analyze_dbscan)
-        self.dbscan_button.grid(row=1, column=0, pady=5)
         
-        self.elbow_button = ttk.Button(actions_frame, text="Méthode du Coude (Elbow)", 
-                                      command=self.elbow_method)
+        self.elbow_button = ttk.Button(buttons_frame, text="Méthode du Coude (Elbow)", 
+                                     command=self.elbow_method)
         self.elbow_button.grid(row=2, column=0, pady=5)
         
         # Afficher/cacher les boutons selon l'algorithme initial
@@ -167,17 +199,25 @@ class DataMiningInterface:
                 messagebox.showerror("Erreur", "Le fichier de données n'existe pas!")
                 return
                 
-            # Mise à jour des variables globales
-            map_visualization.df = pd.read_csv(self.data_file_path.get(), low_memory=False)
-            map_visualization.df = map_visualization.df.head(int(self.n_points_var.get()))
+            # Chargement et préparation des données
+            df = pd.read_csv(self.data_file_path.get(), low_memory=False)
+            df = df.head(int(self.n_points_var.get()))
             
-            # Vérification des colonnes requises
-            required_columns = ['lat', 'long', 'tags', 'user', 'id']
-            missing_columns = [col for col in required_columns if col not in map_visualization.df.columns]
-            if missing_columns:
-                messagebox.showerror("Erreur", 
-                    f"Colonnes manquantes dans le fichier: {', '.join(missing_columns)}")
-                return
+            # Appliquer le filtre de tag si un tag est spécifié
+            search_term = self.search_var.get().lower().strip()
+            if search_term:
+                mask = df['tags'].fillna('').str.lower().str.contains(search_term)
+                df = df[mask]
+                if len(df) == 0:
+                    messagebox.showinfo("Résultat", "Aucun point trouvé avec ce tag")
+                    return
+                
+                # Ajouter les attributs pour le traitement des tags
+                df.search_term = search_term
+                df.keep_search_tag = self.keep_search_tag_var.get()
+            
+            # Mise à jour des variables globales
+            map_visualization.df = df
             
             # Configuration de l'algorithme choisi
             if self.algo_var.get() == "DBSCAN":
@@ -187,7 +227,7 @@ class DataMiningInterface:
                 )
             else:
                 map_visualization.clustering_algo = KMeans(
-                    n_clusters=int(self.n_clusters_var.get()),
+                    n_clusters=min(int(self.n_clusters_var.get()), len(df)),
                     random_state=42
                 )
             
@@ -196,13 +236,17 @@ class DataMiningInterface:
             
             # Exécution de la génération de carte
             map_visualization.main()
-            messagebox.showinfo("Succès", "La carte a été générée avec succès!")
+            
+            # Message de succès avec info sur le filtrage si un tag était spécifié
+            if search_term:
+                messagebox.showinfo("Succès", 
+                    f"La carte a été générée avec {len(df)} points contenant le tag '{search_term}'!")
+            else:
+                messagebox.showinfo("Succès", "La carte a été générée avec succès!")
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
-            
-    def analyze_dbscan(self):
-        messagebox.showinfo("Info", "Fonctionnalité à implémenter: Analyse des paramètres optimaux pour DBSCAN")
+
     
     def elbow_method(self):
         try:
@@ -293,11 +337,43 @@ class DataMiningInterface:
     def update_action_buttons(self):
         """Met à jour l'affichage des boutons selon l'algorithme sélectionné"""
         if self.algo_var.get() == "DBSCAN":
-            self.dbscan_button.grid()
             self.elbow_button.grid_remove()
         else:
-            self.dbscan_button.grid_remove()
             self.elbow_button.grid()
+
+    def filter_by_tag(self):
+        """Vérifie simplement si le tag existe dans les données"""
+        try:
+            search_term = self.search_var.get().lower().strip()
+            if not search_term:
+                messagebox.showwarning("Attention", "Veuillez entrer un tag à rechercher")
+                return
+                
+            # Vérification et chargement des données
+            if not Path(self.data_file_path.get()).exists():
+                messagebox.showerror("Erreur", "Le fichier de données n'existe pas!")
+                return
+                
+            # Vérification rapide de l'existence du tag
+            df = pd.read_csv(self.data_file_path.get(), low_memory=False)
+            df = df.head(int(self.n_points_var.get()))
+            mask = df['tags'].fillna('').str.lower().str.contains(search_term)
+            count = mask.sum()
+            
+            if count == 0:
+                messagebox.showinfo("Résultat", "Aucun point ne contient ce tag")
+            else:
+                messagebox.showinfo("Résultat", 
+                    f"{count} points contiennent le tag '{search_term}'\n"
+                    "Cliquez sur 'Générer la carte' pour visualiser ces points.")
+            
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
+
+    def apply_suggestion(self, tag):
+        """Applique le tag suggéré à la barre de recherche et lance la recherche"""
+        self.search_var.set(tag)
+        self.filter_by_tag()
 
 def main():
     root = tk.Tk()
