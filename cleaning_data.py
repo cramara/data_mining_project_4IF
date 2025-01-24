@@ -31,32 +31,34 @@ data = data.drop(columns=["Unnamed: 16", "Unnamed: 17", "Unnamed: 18"])
 data = data.drop_duplicates(keep='first')
 print(f"Après suppression des doublons : {data.shape}")
 
+# Supprimer les espaces au début et à la fin des noms de colonnes
+data.columns = data.columns.str.strip()
 
 #Supprimer les colonnes inutiles pour le projet
-data = data.drop(columns=[" date_upload_minute", " date_upload_hour", " date_upload_day", " date_upload_month"," date_upload_year"])
+data = data.drop(columns=["date_upload_minute", "date_upload_hour", "date_upload_day", "date_upload_month","date_upload_year"])
 
 
 # Filtrer les lignes avec des valeurs incorrectes
-data = data[(data[' date_taken_year'] > 0) & 
-            (data[' date_taken_month'] > 0) & (data[' date_taken_month'] <= 12) & 
-            (data[' date_taken_day'] > 0) & (data[' date_taken_day'] <= 31) & 
-            (data[' date_taken_hour'] >= 0) & (data[' date_taken_hour'] < 24) & 
-            (data[' date_taken_minute'] >= 0) & (data[' date_taken_minute'] < 60)]
+data = data[(data['date_taken_year'] > 0) & 
+            (data['date_taken_month'] > 0) & (data['date_taken_month'] <= 12) & 
+            (data['date_taken_day'] > 0) & (data['date_taken_day'] <= 31) & 
+            (data['date_taken_hour'] >= 0) & (data['date_taken_hour'] < 24) & 
+            (data['date_taken_minute'] >= 0) & (data['date_taken_minute'] < 60)]
 
 # Concaténer les colonnes en une seule colonne de type datetime
 try:
     # Supprimer les parties non converties comme ".0"
-    data[' date_taken_year'] = data[' date_taken_year'].astype(str).str.replace('.0', '', regex=False)
-    data[' date_taken_month'] = data[' date_taken_month'].astype(str).str.replace('.0', '', regex=False)
-    data[' date_taken_day'] = data[' date_taken_day'].astype(str).str.replace('.0', '', regex=False)
-    data[' date_taken_hour'] = data[' date_taken_hour'].astype(str).str.replace('.0', '', regex=False)
-    data[' date_taken_minute'] = data[' date_taken_minute'].astype(str).str.replace('.0', '', regex=False)
+    data['date_taken_year'] = data['date_taken_year'].astype(str).str.replace('.0', '', regex=False)
+    data['date_taken_month'] = data['date_taken_month'].astype(str).str.replace('.0', '', regex=False)
+    data['date_taken_day'] = data['date_taken_day'].astype(str).str.replace('.0', '', regex=False)
+    data['date_taken_hour'] = data['date_taken_hour'].astype(str).str.replace('.0', '', regex=False)
+    data['date_taken_minute'] = data['date_taken_minute'].astype(str).str.replace('.0', '', regex=False)
 
-    data['date_taken'] = pd.to_datetime(data[' date_taken_year'] + '-' +
-                                        data[' date_taken_month'] + '-' +
-                                        data[' date_taken_day'] + ' ' +
-                                        data[' date_taken_hour'] + ':' +
-                                        data[' date_taken_minute'],
+    data['date_taken'] = pd.to_datetime(data['date_taken_year'] + '-' +
+                                        data['date_taken_month'] + '-' +
+                                        data['date_taken_day'] + ' ' +
+                                        data['date_taken_hour'] + ':' +
+                                        data['date_taken_minute'],
                                         format='%Y-%m-%d %H:%M')
     print("Colonne 'date_taken' créée avec succès.")
 except KeyError as e:
@@ -65,7 +67,7 @@ except ValueError as e:
     print(f"Erreur de conversion de date : {e}")
 
 #Supprimer les colonnes inutiles pour le projet
-data = data.drop(columns=[" date_taken_minute", " date_taken_hour", " date_taken_day", " date_taken_month"," date_taken_year"])
+data = data.drop(columns=["date_taken_minute", "date_taken_hour", "date_taken_day", "date_taken_month","date_taken_year"])
 
 
 # Définir les limites du rectangle
@@ -75,8 +77,8 @@ lon_min = 4.78   # Exemple : longitude minimale
 lon_max = 4.95   # Exemple : longitude maximale
 
 # Filtrer les lignes pour ne garder que celles à l'intérieur du rectangle
-data = data[(data[' lat'] >= lat_min) & (data[' lat'] <= lat_max) &
-            (data[' long'] >= lon_min) & (data[' long'] <= lon_max)]
+data = data[(data['lat'] >= lat_min) & (data['lat'] <= lat_max) &
+            (data['long'] >= lon_min) & (data['long'] <= lon_max)]
 
 print(f"Après suppression des lignes hors du rectangle : {data.shape}")
 
