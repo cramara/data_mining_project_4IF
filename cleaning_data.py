@@ -41,6 +41,16 @@ text_columns = data.select_dtypes(include=['object']).columns
 for col in text_columns:
     data[col] = data[col].fillna('Unknown')
 
+# Ajouter le champ date formaté
+print("\nCréation du champ date formaté...")
+# Assurer que les composants de date sont des entiers et ajouter des zéros si nécessaire
+data['date'] = (data['date_taken_day'].astype(str).str.zfill(2) + '-' + 
+                data['date_taken_month'].astype(str).str.zfill(2) + '-' + 
+                data['date_taken_year'].astype(str))
+
+# Vérifier que les dates sont valides
+print("Exemple de dates:", data['date'].head())
+
 # 6. Afficher les informations sur le dataset nettoyé
 print("\nInformations sur le dataset nettoyé:")
 print(data.info())

@@ -7,6 +7,8 @@ from sklearn.cluster import DBSCAN, KMeans
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
+from tkcalendar import DateEntry
+from datetime import datetime
 
 class DataMiningInterface:
     def __init__(self, root):
@@ -36,6 +38,10 @@ class DataMiningInterface:
         self.search_var = tk.StringVar()
         self.keep_search_tag_var = tk.BooleanVar(value=False)
         self.display_points_var = tk.StringVar(value=self.default_values['display_points'])
+        
+        # Ajouter les variables pour les dates
+        self.date_start_var = tk.StringVar()
+        self.date_end_var = tk.StringVar()
         
         # Création des widgets dans le bon ordre
         self.create_file_frame()
@@ -79,6 +85,31 @@ class DataMiningInterface:
         # Bouton pour sélectionner le fichier
         ttk.Button(file_frame, text="Choisir un fichier", 
                   command=self.select_file).grid(row=3, column=0, columnspan=3, pady=5)
+        
+        # Ajouter un frame pour la sélection de dates
+        date_frame = ttk.LabelFrame(file_frame, text="Filtrer par période", padding="5")
+        date_frame.grid(row=4, column=0, columnspan=3, pady=5, sticky="ew")
+        
+        # Date de début
+        ttk.Label(date_frame, text="Du:").grid(row=0, column=0, padx=5)
+        self.date_start = DateEntry(date_frame, width=12, 
+                                  background='darkblue', foreground='white', 
+                                  borderwidth=2, year=2019,
+                                  textvariable=self.date_start_var)
+        self.date_start.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Date de fin
+        ttk.Label(date_frame, text="Au:").grid(row=0, column=2, padx=5)
+        self.date_end = DateEntry(date_frame, width=12, 
+                                background='darkblue', foreground='white', 
+                                borderwidth=2, year=2018,
+                                textvariable=self.date_end_var)
+        self.date_end.grid(row=0, column=3, padx=5, pady=5)
+        
+        # Case à cocher pour activer le filtre temporel
+        self.use_date_filter = tk.BooleanVar(value=False)
+        ttk.Checkbutton(date_frame, text="Activer le filtre temporel", 
+                       variable=self.use_date_filter).grid(row=0, column=4, padx=5)
         
     def create_parameters_frame(self):
         params_frame = ttk.LabelFrame(self.root, text="Paramètres", padding="10")
@@ -266,6 +297,27 @@ class DataMiningInterface:
             # Chargement de toutes les données
             df = pd.read_csv(self.data_file_path.get(), low_memory=False)
             
+            # Appliquer le filtre temporel si activé
+            if self.use_date_filter.get():
+                try:
+                    start_date = datetime.strptime(self.date_start_var.get(), "%m/%d/%y").strftime("%Y-%m-%d")
+                    end_date = datetime.strptime(self.date_end_var.get(), "%m/%d/%y").strftime("%Y-%m-%d")
+                    
+                    # Convertir la colonne date en datetime si ce n'est pas déjà fait
+                    df['date'] = pd.to_datetime(df['date'])
+                    
+                    # Filtrer les données selon la période
+                    mask = (df['date'] >= start_date) & (df['date'] <= end_date)
+                    df = df[mask]
+                    
+                    if len(df) == 0:
+                        messagebox.showinfo("Résultat", "Aucun point trouvé dans cette période")
+                        return
+                except Exception as e:
+                    messagebox.showerror("Erreur", 
+                        "Erreur lors du filtrage par date. Vérifiez le format des dates dans le fichier.")
+                    return
+            
             # Appliquer le filtre de tag si un tag est spécifié
             search_term = self.search_var.get().lower().strip()
             if search_term:
@@ -325,14 +377,17 @@ class DataMiningInterface:
             # Exécution de la génération de carte
             map_visualization.main()
             
-            # Message de succès avec info sur le filtrage si un tag était spécifié
+            # Mise à jour du message de succès
+            total_points = len(df)
+            displayed_points = len(display_df)
+            message = f"La carte a été générée avec {displayed_points} points affichés sur {total_points} points"
+            
             if search_term:
-                messagebox.showinfo("Succès", 
-                    f"La carte a été générée avec {len(display_df)} points affichés sur {len(df)} points "
-                    f"contenant le tag '{search_term}'!")
-            else:
-                messagebox.showinfo("Succès", 
-                    f"La carte a été générée avec {len(display_df)} points affichés sur {len(df)} points au total!")
+                message += f" contenant le tag '{search_term}'"
+            if self.use_date_filter.get():
+                message += f"\nPériode : du {self.date_start_var.get()} au {self.date_end_var.get()}"
+            
+            messagebox.showinfo("Succès", message + "!")
             
         except Exception as e:
             messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
