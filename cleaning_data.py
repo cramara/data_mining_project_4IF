@@ -39,7 +39,7 @@ data = data.drop(columns=["date_upload_minute", "date_upload_hour", "date_upload
 
 
 # Filtrer les lignes avec des valeurs incorrectes
-data = data[(data['date_taken_year'] > 0) & 
+data = data[(data['date_taken_year'] > 2010) &  (data['date_taken_year'] <= 2024) &
             (data['date_taken_month'] > 0) & (data['date_taken_month'] <= 12) & 
             (data['date_taken_day'] > 0) & (data['date_taken_day'] <= 31) & 
             (data['date_taken_hour'] >= 0) & (data['date_taken_hour'] < 24) & 
