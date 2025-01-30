@@ -27,6 +27,18 @@ class DataMiningInterface:
             'display_points': "10000"
         }
         
+        # Initialiser les dates min et max
+        self.start_year = 2010
+        self.end_year = 2018
+        try:
+            if Path(self.default_values['data_file']).exists():
+                df = pd.read_csv(self.default_values['data_file'], low_memory=False)
+                df['date_taken'] = pd.to_datetime(df['date_taken'])
+                self.start_year = df['date_taken'].dt.year.min()
+                self.end_year = df['date_taken'].dt.year.max()
+        except Exception as e:
+            print(f"Erreur lors de l'initialisation des dates: {e}")
+        
         # Variables pour les paramètres
         self.eps_var = tk.StringVar(value=self.default_values['eps'])
         self.min_samples_var = tk.StringVar(value=self.default_values['min_samples'])
@@ -38,6 +50,17 @@ class DataMiningInterface:
         self.search_var = tk.StringVar()
         self.keep_search_tag_var = tk.BooleanVar(value=False)
         self.display_points_var = tk.StringVar(value=self.default_values['display_points'])
+        
+        # Variables pour les labels
+        self.n_clusters_label = None
+        self.k_range_label = None
+        self.n_points_label = None
+        self.display_points_label = None
+        self.n_common_tags_label = None
+        
+        # Variables pour les sliders k_min et k_max
+        self.k_min_var = tk.StringVar(value="2")
+        self.k_max_var = tk.StringVar(value="20")
         
         # Ajouter les variables pour les dates
         self.date_start_var = tk.StringVar()
@@ -94,7 +117,8 @@ class DataMiningInterface:
         ttk.Label(date_frame, text="Du:").grid(row=0, column=0, padx=5)
         self.date_start = DateEntry(date_frame, width=12, 
                                   background='darkblue', foreground='white', 
-                                  borderwidth=2, year=2019,
+                                  borderwidth=2, year=self.start_year,
+                                  date_pattern='dd/mm/yyyy',
                                   textvariable=self.date_start_var)
         self.date_start.grid(row=0, column=1, padx=5, pady=5)
         
@@ -102,7 +126,8 @@ class DataMiningInterface:
         ttk.Label(date_frame, text="Au:").grid(row=0, column=2, padx=5)
         self.date_end = DateEntry(date_frame, width=12, 
                                 background='darkblue', foreground='white', 
-                                borderwidth=2, year=2018,
+                                borderwidth=2, year=self.end_year,
+                                date_pattern='dd/mm/yyyy',
                                 textvariable=self.date_end_var)
         self.date_end.grid(row=0, column=3, padx=5, pady=5)
         
@@ -148,6 +173,7 @@ class DataMiningInterface:
                                    command=lambda v: self.update_n_clusters(v))
         n_clusters_scale.grid(row=0, column=1, padx=5, sticky="ew")
         n_clusters_scale.set(int(self.default_values['n_clusters']))
+        
         self.n_clusters_label = ttk.Label(self.kmeans_frame, text=self.default_values['n_clusters'])
         self.n_clusters_label.grid(row=0, column=2, padx=5)
         
@@ -187,6 +213,7 @@ class DataMiningInterface:
                                  command=lambda v: self.update_n_points(v))
         n_points_scale.grid(row=2, column=1, padx=5, sticky="ew")
         n_points_scale.set(int(self.default_values['n_points']))
+        
         self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
         self.n_points_label.grid(row=2, column=2, padx=5)
         
@@ -200,6 +227,7 @@ class DataMiningInterface:
                                        command=lambda v: self.update_display_points(v))
         display_points_scale.grid(row=3, column=1, padx=5, sticky="ew")
         display_points_scale.set(int(self.default_values['display_points']))
+        
         self.display_points_label = ttk.Label(params_frame, text=self.default_values['display_points'])
         self.display_points_label.grid(row=3, column=2, padx=5)
         
@@ -213,6 +241,7 @@ class DataMiningInterface:
                                       command=lambda v: self.update_n_common_tags(v))
         n_common_tags_scale.grid(row=4, column=1, padx=5, sticky="ew")
         n_common_tags_scale.set(int(self.default_values['n_common_tags']))
+        
         self.n_common_tags_label = ttk.Label(params_frame, text=self.default_values['n_common_tags'])
         self.n_common_tags_label.grid(row=4, column=2, padx=5)
         
@@ -300,14 +329,16 @@ class DataMiningInterface:
             # Appliquer le filtre temporel si activé
             if self.use_date_filter.get():
                 try:
-                    start_date = datetime.strptime(self.date_start_var.get(), "%m/%d/%y").strftime("%Y-%m-%d")
-                    end_date = datetime.strptime(self.date_end_var.get(), "%m/%d/%y").strftime("%Y-%m-%d")
+                    # Convertir les dates sélectionnées au format YYYY-MM-DD
+                    start_date = datetime.strptime(self.date_start_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
+                    end_date = datetime.strptime(self.date_end_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
                     
-                    # Convertir la colonne date en datetime si ce n'est pas déjà fait
-                    df['date'] = pd.to_datetime(df['date'])
+                    # Convertir la colonne date_taken en datetime si ce n'est pas déjà fait
+                    df['date_taken'] = pd.to_datetime(df['date_taken'])
                     
                     # Filtrer les données selon la période
-                    mask = (df['date'] >= start_date) & (df['date'] <= end_date)
+                    mask = (df['date_taken'].dt.date >= pd.to_datetime(start_date).date()) & \
+                          (df['date_taken'].dt.date <= pd.to_datetime(end_date).date())
                     df = df[mask]
                     
                     if len(df) == 0:
@@ -315,7 +346,8 @@ class DataMiningInterface:
                         return
                 except Exception as e:
                     messagebox.showerror("Erreur", 
-                        "Erreur lors du filtrage par date. Vérifiez le format des dates dans le fichier.")
+                        f"Erreur lors du filtrage par date: {str(e)}\n"
+                        "Vérifiez le format des dates.")
                     return
             
             # Appliquer le filtre de tag si un tag est spécifié

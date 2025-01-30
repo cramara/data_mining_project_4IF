@@ -84,8 +84,8 @@ print(f"Après suppression des lignes hors du rectangle : {data.shape}")
 
 # 6. Sauvegarder les données nettoyées
 print("\nSauvegarde des données nettoyées...")
-data.to_csv("flickr_data_cleaned_quentin.csv", index=False)
-print("Données sauvegardées dans 'flickr_data_cleaned_quentin.csv'")
+data.to_csv("flickr_data_cleaned.csv", index=False)
+print("Données sauvegardées dans 'flickr_data_cleaned.csv'")
 
 
 ######################################################################
