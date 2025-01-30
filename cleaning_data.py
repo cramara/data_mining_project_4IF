@@ -69,12 +69,14 @@ except ValueError as e:
 #Supprimer les colonnes inutiles pour le projet
 data = data.drop(columns=["date_taken_minute", "date_taken_hour", "date_taken_day", "date_taken_month","date_taken_year"])
 
+#Supprimer les lignes qui n'ont ni tags, ni titre
+data = data.dropna(subset=['tags', 'title'], how='all')
 
 # Définir les limites du rectangle
-lat_min = 45.70  # Exemple : latitude minimale
-lat_max = 45.87  # Exemple : latitude maximale
-lon_min = 4.78   # Exemple : longitude minimale
-lon_max = 4.95   # Exemple : longitude maximale
+lat_min = 45.73  # Exemple : latitude minimale
+lat_max = 45.80  # Exemple : latitude maximale
+lon_min = 4.79   # Exemple : longitude minimale
+lon_max = 4.90   # Exemple : longitude maximale
 
 # Filtrer les lignes pour ne garder que celles à l'intérieur du rectangle
 data = data[(data['lat'] >= lat_min) & (data['lat'] <= lat_max) &
@@ -86,84 +88,3 @@ print(f"Après suppression des lignes hors du rectangle : {data.shape}")
 print("\nSauvegarde des données nettoyées...")
 data.to_csv("flickr_data_cleaned.csv", index=False)
 print("Données sauvegardées dans 'flickr_data_cleaned.csv'")
-
-
-######################################################################
-
-"""
-# Afficher les types de chaque valeur dans la colonne "date_upload_minute"
-types_values = data[" title"].apply(type)
-print(types_values.value_counts())
-
-# Afficher les lignes dont la colonne "date_upload_minute" est de type string
-lignes_string = data[data[" title"].apply(lambda x: isinstance(x, float))]
-print(lignes_string[" title"])
-
-
-print("Types de données des colonnes :")
-print(data.dtypes)
-
-print(data.columns)
-
-# Afficher les lignes dont la colonne "date_upload_minute" est de type string
-lignes_string = data[data[" date_upload_minute"].apply(lambda x: isinstance(x, str))]
-print(lignes_string[" date_upload_minute"])
-
-# Afficher les types de chaque valeur dans la colonne "date_upload_minute"
-types_values = data[" tags"].apply(type)
-print(types_values.value_counts())
-
-# Afficher les lignes dont la colonne "date_upload_minute" est de type string
-lignes_string = data[data[" date_upload_minute"].apply(lambda x: isinstance(x, str))]
-print(lignes_string)
-
-# Afficher les lignes dont la colonne "date_upload_minute" est de type string
-print(data[data[" date_upload_minute"]>60])
-
-
-print(f"Avant suppression de la conversion : {data.shape}")
-
-# Convertir les valeurs de la colonne "date_upload_minute" en int
-data[" date_upload_minute"] = pd.to_numeric(data[" date_upload_minute"], errors='coerce')
-
-# Supprimer les lignes avec des valeurs NaN résultant de la conversion
-data = data.dropna(subset=[" date_upload_minute"])
-
-# Convertir les valeurs en int
-data[" date_upload_minute"] = data[" date_upload_minute"].astype(int)
-
-print(f"Après suppression de la conversion : {data.shape}")
-
-
-"""
-
-
-"""
-#Min en entier etc.
-
-
-
-
-print(data.columns)
-
-data["Unnamed: 16"].count()
-data["Unnamed: 18"].count()
-data[' long'].count()
-
-
-# 3. Supprimer les lignes avec trop de valeurs manquantes (plus de 50% de NaN)
-data = data.dropna(thresh=len(data.columns)//2)
-print(f"Après suppression des lignes avec trop de NaN : {data.shape}")
-
-# 4. Remplacer les valeurs manquantes restantes
-# Pour les colonnes numériques : remplacer par la médiane
-numeric_columns = data.select_dtypes(include=[np.number]).columns
-for col in numeric_columns:
-    data[col] = data[col].fillna(data[col].median())
-
-# Pour les colonnes textuelles : remplacer par 'Unknown'
-text_columns = data.select_dtypes(include=['object']).columns
-for col in text_columns:
-    data[col] = data[col].fillna('Unknown')
-
-"""
