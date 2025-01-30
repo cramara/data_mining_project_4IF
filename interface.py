@@ -9,6 +9,11 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
 from tkcalendar import DateEntry
 from datetime import datetime
+from flask import Flask
+import threading
+import webbrowser
+import seaborn as sns
+from matplotlib.dates import DateFormatter
 
 class DataMiningInterface:
     def __init__(self, root):
@@ -24,7 +29,7 @@ class DataMiningInterface:
             'n_common_tags': "100",
             'data_file': "flickr_data_cleaned.csv",
             'algo': "DBSCAN",
-            'display_points': "10000"
+            'display_points': "2000"
         }
         
         # Initialiser les dates min et max
@@ -65,6 +70,16 @@ class DataMiningInterface:
         # Ajouter les variables pour les dates
         self.date_start_var = tk.StringVar()
         self.date_end_var = tk.StringVar()
+        
+        # Initialiser le serveur Flask
+        self.app = Flask(__name__)
+        self.start_server()
+        
+        # Stocker les données des clusters
+        self.cluster_data = None
+        
+        # Ajouter une variable pour l'affichage des points
+        self.show_points_var = tk.BooleanVar(value=True)
         
         # Création des widgets dans le bon ordre
         self.create_file_frame()
@@ -217,19 +232,25 @@ class DataMiningInterface:
         self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
         self.n_points_label.grid(row=2, column=2, padx=5)
         
-        # Nombre de points à afficher avec slider
-        ttk.Label(params_frame, text="Nombre de points à afficher:").grid(row=3, column=0, sticky="w")
-        display_points_scale = ttk.Scale(params_frame,
-                                       from_=1000,
-                                       to=50000,
+        # Après le slider de display_points, ajouter la case à cocher
+        points_display_frame = ttk.Frame(params_frame)
+        points_display_frame.grid(row=3, column=0, columnspan=3, sticky="ew")
+        
+        ttk.Label(points_display_frame, text="Nombre de points à afficher:").grid(row=0, column=0, sticky="w")
+        display_points_scale = ttk.Scale(points_display_frame,
+                                       from_=100,
+                                       to=5000,
                                        orient="horizontal",
                                        length=200,
                                        command=lambda v: self.update_display_points(v))
-        display_points_scale.grid(row=3, column=1, padx=5, sticky="ew")
-        display_points_scale.set(int(self.default_values['display_points']))
+        display_points_scale.grid(row=0, column=1, padx=5, sticky="ew")
         
-        self.display_points_label = ttk.Label(params_frame, text=self.default_values['display_points'])
-        self.display_points_label.grid(row=3, column=2, padx=5)
+        self.display_points_label = ttk.Label(points_display_frame, text=self.default_values['display_points'])
+        self.display_points_label.grid(row=0, column=2, padx=5)
+        
+        # Case à cocher pour afficher/masquer les points
+        ttk.Checkbutton(points_display_frame, text="Afficher les points", 
+                       variable=self.show_points_var).grid(row=1, column=0, columnspan=3, pady=2)
         
         # Tags communs avec slider
         ttk.Label(params_frame, text="Tags communs à exclure:").grid(row=4, column=0, sticky="w")
@@ -316,115 +337,210 @@ class DataMiningInterface:
         if filename:
             self.data_file_path.set(filename)
         
+    def start_server(self):
+        """Démarre le serveur Flask dans un thread séparé"""
+        @self.app.route('/frequentation/<int:cluster_id>')
+        def show_frequentation(cluster_id):
+            self.plot_cluster_frequentation(cluster_id)
+            return 'OK'
+        
+        def run_server():
+            self.app.run(port=5000)
+        
+        threading.Thread(target=run_server, daemon=True).start()
+    
+    def plot_cluster_frequentation(self, cluster_id):
+        """Affiche un graphique de la fréquentation pour un cluster donné"""
+        if self.cluster_data is None or cluster_id not in self.cluster_data:
+            messagebox.showerror("Erreur", "Données du cluster non disponibles")
+            return
+        
+        # Récupérer les données du cluster
+        cluster_df = self.cluster_data[cluster_id]
+        
+        # Convertir les dates en datetime si nécessaire
+        cluster_df['date_taken'] = pd.to_datetime(cluster_df['date_taken'])
+        
+        # Créer le graphique
+        plt.figure(figsize=(12, 6))
+        
+        # Compter le nombre de photos par jour
+        daily_counts = cluster_df.groupby(cluster_df['date_taken'].dt.date).size()
+        
+        # Tracer le graphique
+        sns.lineplot(data=daily_counts)
+        
+        plt.title(f'Fréquentation du cluster {cluster_id} au fil du temps')
+        plt.xlabel('Date')
+        plt.ylabel('Nombre de photos')
+        plt.xticks(rotation=45)
+        
+        # Formater les dates
+        plt.gca().xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+        
+        plt.tight_layout()
+        plt.show()
+    
     def generate_map(self):
         try:
-            # Vérification et chargement des données
-            if not Path(self.data_file_path.get()).exists():
-                messagebox.showerror("Erreur", "Le fichier de données n'existe pas!")
-                return
-                
-            # Chargement de toutes les données
-            df = pd.read_csv(self.data_file_path.get(), low_memory=False)
+            # Créer et afficher la fenêtre de chargement
+            loading_window = tk.Toplevel(self.root)
+            loading_window.title("Génération en cours...")
+            loading_window.geometry("300x150")
             
-            # Appliquer le filtre temporel si activé
-            if self.use_date_filter.get():
-                try:
-                    # Convertir les dates sélectionnées au format YYYY-MM-DD
-                    start_date = datetime.strptime(self.date_start_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
-                    end_date = datetime.strptime(self.date_end_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
-                    
-                    # Convertir la colonne date_taken en datetime si ce n'est pas déjà fait
-                    df['date_taken'] = pd.to_datetime(df['date_taken'])
-                    
-                    # Filtrer les données selon la période
-                    mask = (df['date_taken'].dt.date >= pd.to_datetime(start_date).date()) & \
-                          (df['date_taken'].dt.date <= pd.to_datetime(end_date).date())
-                    df = df[mask]
-                    
-                    if len(df) == 0:
-                        messagebox.showinfo("Résultat", "Aucun point trouvé dans cette période")
+            # Centrer la fenêtre de chargement
+            loading_window.transient(self.root)
+            loading_window.grab_set()
+            loading_window.geometry("+%d+%d" % (
+                self.root.winfo_rootx() + self.root.winfo_width()//2 - 150,
+                self.root.winfo_rooty() + self.root.winfo_height()//2 - 75))
+            
+            # Ajouter un message et une barre de progression
+            ttk.Label(loading_window, text="Génération de la carte en cours...", 
+                     padding=20).pack()
+            progress = ttk.Progressbar(loading_window, mode='indeterminate')
+            progress.pack(padx=20, pady=10, fill='x')
+            progress.start(10)
+            
+            # Mettre à jour l'interface
+            loading_window.update()
+            
+            try:
+                # Vérification et chargement des données
+                if not Path(self.data_file_path.get()).exists():
+                    loading_window.destroy()
+                    error_msg = "Le fichier de données n'existe pas!"
+                    print(f"Erreur: {error_msg}")
+                    messagebox.showerror("Erreur", error_msg)
+                    return
+                
+                # Chargement de toutes les données
+                df = pd.read_csv(self.data_file_path.get(), low_memory=False)
+                
+                # Appliquer le filtre temporel si activé
+                if self.use_date_filter.get():
+                    try:
+                        # Convertir les dates sélectionnées au format YYYY-MM-DD
+                        start_date = datetime.strptime(self.date_start_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
+                        end_date = datetime.strptime(self.date_end_var.get(), "%d/%m/%Y").strftime("%Y-%m-%d")
+                        
+                        # Convertir la colonne date_taken en datetime si ce n'est pas déjà fait
+                        df['date_taken'] = pd.to_datetime(df['date_taken'])
+                        
+                        # Filtrer les données selon la période
+                        mask = (df['date_taken'].dt.date >= pd.to_datetime(start_date).date()) & \
+                              (df['date_taken'].dt.date <= pd.to_datetime(end_date).date())
+                        df = df[mask]
+                        
+                        if len(df) == 0:
+                            messagebox.showinfo("Résultat", "Aucun point trouvé dans cette période")
+                            return
+                    except Exception as e:
+                        messagebox.showerror("Erreur", 
+                            f"Erreur lors du filtrage par date: {str(e)}\n"
+                            "Vérifiez le format des dates.")
                         return
+                
+                # Appliquer le filtre de tag si un tag est spécifié
+                search_term = self.search_var.get().lower().strip()
+                if search_term:
+                    mask = df['tags'].fillna('').str.lower().str.contains(search_term)
+                    df = df[mask]
+                    if len(df) == 0:
+                        messagebox.showinfo("Résultat", "Aucun point trouvé avec ce tag")
+                        return
+                    
+                    # Ajouter les attributs pour le traitement des tags
+                    df.search_term = search_term
+                    df.keep_search_tag = self.keep_search_tag_var.get()
+                
+                # Faire le clustering sur tous les points
+                if self.algo_var.get() == "DBSCAN":
+                    clustering_algo = DBSCAN(
+                        eps=float(self.eps_var.get()),
+                        min_samples=int(self.min_samples_var.get())
+                    )
+                else:
+                    clustering_algo = KMeans(
+                        n_clusters=min(int(self.n_clusters_var.get()), len(df)),
+                        random_state=42
+                    )
+                
+                # Appliquer le clustering sur tous les points
+                df['cluster'] = clustering_algo.fit_predict(df[['lat', 'long']].values)
+                
+                # Sélectionner un échantillon aléatoire pour l'affichage si nécessaire
+                max_display_points = int(self.display_points_var.get())
+                if len(df) > max_display_points:
+                    # Échantillonnage stratifié par cluster pour maintenir la distribution
+                    display_df = pd.DataFrame()
+                    for cluster in df['cluster'].unique():
+                        cluster_data = df[df['cluster'] == cluster]
+                        # Calculer le nombre de points à prendre de ce cluster
+                        n_points = int(max_display_points * (len(cluster_data) / len(df)))
+                        if n_points > 0:  # S'assurer qu'on prend au moins 1 point
+                            sampled = cluster_data.sample(n=min(n_points, len(cluster_data)), 
+                                                        random_state=42)
+                            display_df = pd.concat([display_df, sampled])
+                    
+                    # S'assurer qu'on a exactement max_display_points
+                    if len(display_df) < max_display_points:
+                        remaining = max_display_points - len(display_df)
+                        additional = df[~df.index.isin(display_df.index)].sample(n=remaining, 
+                                                                               random_state=42)
+                        display_df = pd.concat([display_df, additional])
+                else:
+                    display_df = df
+                
+                # Stocker les données par cluster
+                self.cluster_data = {}
+                for cluster_id in df['cluster'].unique():
+                    self.cluster_data[cluster_id] = df[df['cluster'] == cluster_id].copy()
+                
+                # Continuer avec la génération de la carte
+                map_visualization.df = df
+                map_visualization.nb_points_cluster = self.n_points_var.get()
+                map_visualization.clustering_algo = clustering_algo
+                map_visualization.N = int(self.n_common_tags_var.get())
+                map_visualization.show_points = self.show_points_var.get()
+                
+                try:
+                    map_visualization.main()
                 except Exception as e:
-                    messagebox.showerror("Erreur", 
-                        f"Erreur lors du filtrage par date: {str(e)}\n"
-                        "Vérifiez le format des dates.")
-                    return
-            
-            # Appliquer le filtre de tag si un tag est spécifié
-            search_term = self.search_var.get().lower().strip()
-            if search_term:
-                mask = df['tags'].fillna('').str.lower().str.contains(search_term)
-                df = df[mask]
-                if len(df) == 0:
-                    messagebox.showinfo("Résultat", "Aucun point trouvé avec ce tag")
-                    return
+                    loading_window.destroy()
+                    error_msg = f"Erreur lors de la génération de la carte: {str(e)}"
+                    print(f"Erreur: {error_msg}")
+                    raise
                 
-                # Ajouter les attributs pour le traitement des tags
-                df.search_term = search_term
-                df.keep_search_tag = self.keep_search_tag_var.get()
-            
-            # Faire le clustering sur tous les points
-            if self.algo_var.get() == "DBSCAN":
-                clustering_algo = DBSCAN(
-                    eps=float(self.eps_var.get()),
-                    min_samples=int(self.min_samples_var.get())
-                )
-            else:
-                clustering_algo = KMeans(
-                    n_clusters=min(int(self.n_clusters_var.get()), len(df)),
-                    random_state=42
-                )
-            
-            # Appliquer le clustering sur tous les points
-            df['cluster'] = clustering_algo.fit_predict(df[['lat', 'long']].values)
-            
-            # Sélectionner un échantillon aléatoire pour l'affichage si nécessaire
-            max_display_points = int(self.display_points_var.get())
-            if len(df) > max_display_points:
-                # Échantillonnage stratifié par cluster pour maintenir la distribution
-                display_df = pd.DataFrame()
-                for cluster in df['cluster'].unique():
-                    cluster_data = df[df['cluster'] == cluster]
-                    # Calculer le nombre de points à prendre de ce cluster
-                    n_points = int(max_display_points * (len(cluster_data) / len(df)))
-                    if n_points > 0:  # S'assurer qu'on prend au moins 1 point
-                        sampled = cluster_data.sample(n=min(n_points, len(cluster_data)), 
-                                                    random_state=42)
-                        display_df = pd.concat([display_df, sampled])
+                # Mise à jour du message de succès
+                total_points = self.n_points_var.get()
+                displayed_points = len(display_df)
+                message = f"La carte a été générée avec {displayed_points} points affichés sur {total_points} points"
                 
-                # S'assurer qu'on a exactement max_display_points
-                if len(display_df) < max_display_points:
-                    remaining = max_display_points - len(display_df)
-                    additional = df[~df.index.isin(display_df.index)].sample(n=remaining, 
-                                                                           random_state=42)
-                    display_df = pd.concat([display_df, additional])
-            else:
-                display_df = df
-            
-            # Mise à jour des variables globales pour l'affichage
-            map_visualization.df = display_df
-            map_visualization.clustering_algo = clustering_algo
-            map_visualization.N = int(self.n_common_tags_var.get())
-            
-            # Exécution de la génération de carte
-            map_visualization.main()
-            
-            # Mise à jour du message de succès
-            total_points = len(df)
-            displayed_points = len(display_df)
-            message = f"La carte a été générée avec {displayed_points} points affichés sur {total_points} points"
-            
-            if search_term:
-                message += f" contenant le tag '{search_term}'"
-            if self.use_date_filter.get():
-                message += f"\nPériode : du {self.date_start_var.get()} au {self.date_end_var.get()}"
-            
-            messagebox.showinfo("Succès", message + "!")
+                if search_term:
+                    message += f" contenant le tag '{search_term}'"
+                if self.use_date_filter.get():
+                    message += f"\nPériode : du {self.date_start_var.get()} au {self.date_end_var.get()}"
+                
+                # Fermer la fenêtre de chargement
+                loading_window.destroy()
+                
+                print(f"Succès: {message}")
+                messagebox.showinfo("Succès", message + "!")
+                
+            except Exception as e:
+                # S'assurer que la fenêtre de chargement est fermée en cas d'erreur
+                loading_window.destroy()
+                error_msg = f"Une erreur est survenue: {str(e)}"
+                print(f"Erreur: {error_msg}")
+                messagebox.showerror("Erreur", error_msg)
             
         except Exception as e:
-            messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
+            # En cas d'erreur lors de la création de la fenêtre de chargement
+            error_msg = f"Une erreur est survenue: {str(e)}"
+            print(f"Erreur: {error_msg}")
+            messagebox.showerror("Erreur", error_msg)
 
-    
     def elbow_method(self):
         try:
             # Charger et préparer les données
