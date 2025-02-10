@@ -1,4 +1,5 @@
 .venv
 __pycache__
-cluster_plots
+cluster_plots/*
+!cluster_plots/.gitkeep
 __pycache__/
