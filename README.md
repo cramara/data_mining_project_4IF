@@ -2,8 +2,22 @@
 Data Mining project: Discover and describe areas of interest and events from geo-located data
 
 package : 
+- matplotlib
 - tkcalendar 
-- 
+- pandas
+- folium
+- sklearn.cluster
+- numpy
+- scipy.spatial
+- colorsys
+- collections
+- webbrowser
+- os
+- seaborn
+
+-plotly
+
+pip install pandas, numpy, folium,  scikit-learn, tkcalendar, matplotlib, seaborn, plotly
 
 todo cleaning : 
 - justifier le cleaning des données

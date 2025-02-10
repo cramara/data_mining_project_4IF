@@ -9,16 +9,21 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
 from tkcalendar import DateEntry
 from datetime import datetime
-from flask import Flask
 import threading
 import webbrowser
 import seaborn as sns
 from matplotlib.dates import DateFormatter
+import plotly.express as px
+import os
 
 class DataMiningInterface:
     def __init__(self, root):
         self.root = root
         self.root.title("Interface Data Mining")
+        
+        # Vérifier que le dossier cluster_plots existe
+        if not os.path.exists('cluster_plots'):
+            os.makedirs('cluster_plots')
         
         # Valeurs par défaut
         self.default_values = {
@@ -71,15 +76,15 @@ class DataMiningInterface:
         self.date_start_var = tk.StringVar()
         self.date_end_var = tk.StringVar()
         
-        # Initialiser le serveur Flask
-        self.app = Flask(__name__)
-        self.start_server()
-        
         # Stocker les données des clusters
         self.cluster_data = None
         
         # Ajouter une variable pour l'affichage des points
         self.show_points_var = tk.BooleanVar(value=True)
+        
+        # Ajouter la variable pour les graphiques temporels
+        self.show_time_plots_var = tk.BooleanVar(value=True)
+        self.time_grouping_var = tk.StringVar(value="mois")  # Changer la valeur par défaut en "mois"
         
         # Création des widgets dans le bon ordre
         self.create_file_frame()
@@ -252,6 +257,23 @@ class DataMiningInterface:
         ttk.Checkbutton(points_display_frame, text="Afficher les points", 
                        variable=self.show_points_var).grid(row=1, column=0, columnspan=3, pady=2)
         
+        # Après la case à cocher pour afficher/masquer les points
+        display_options_frame = ttk.Frame(params_frame)
+        display_options_frame.grid(row=5, column=0, columnspan=3, pady=2)
+        
+        # Case à cocher pour les graphiques temporels
+        ttk.Checkbutton(display_options_frame, text="Activer graphiques temporels", 
+                        variable=self.show_time_plots_var).grid(row=0, column=0, padx=5)
+        
+        # Choix du regroupement temporel
+        ttk.Label(display_options_frame, text="Regrouper par:").grid(row=0, column=1, padx=5)
+        time_grouping = ttk.Combobox(display_options_frame, 
+                                    textvariable=self.time_grouping_var,
+                                    values=["mois", "année"],  # Seulement mois et année
+                                    state="readonly",
+                                    width=10)
+        time_grouping.grid(row=0, column=2, padx=5)
+        
         # Tags communs avec slider
         ttk.Label(params_frame, text="Tags communs à exclure:").grid(row=4, column=0, sticky="w")
         n_common_tags_scale = ttk.Scale(params_frame,
@@ -268,7 +290,7 @@ class DataMiningInterface:
         
         # Bouton de réinitialisation
         ttk.Button(params_frame, text="Réinitialiser les paramètres", 
-                  command=self.reset_to_defaults).grid(row=5, column=0, columnspan=3, pady=10)
+                  command=self.reset_to_defaults).grid(row=6, column=0, columnspan=3, pady=10)
         
         # Afficher les paramètres de l'algorithme sélectionné
         self.on_algo_change(None)
@@ -320,6 +342,8 @@ class DataMiningInterface:
         self.data_file_path.set(self.default_values['data_file'])
         self.algo_var.set(self.default_values['algo'])
         self.display_points_var.set(self.default_values['display_points'])
+        self.show_time_plots_var.set(True)
+        self.time_grouping_var.set("mois")
         messagebox.showinfo("Réinitialisation", "Les paramètres ont été réinitialisés aux valeurs par défaut.")
         
     def select_file(self):
@@ -337,17 +361,7 @@ class DataMiningInterface:
         if filename:
             self.data_file_path.set(filename)
         
-    def start_server(self):
-        """Démarre le serveur Flask dans un thread séparé"""
-        @self.app.route('/frequentation/<int:cluster_id>')
-        def show_frequentation(cluster_id):
-            self.plot_cluster_frequentation(cluster_id)
-            return 'OK'
-        
-        def run_server():
-            self.app.run(port=5000)
-        
-        threading.Thread(target=run_server, daemon=True).start()
+
     
     def plot_cluster_frequentation(self, cluster_id):
         """Affiche un graphique de la fréquentation pour un cluster donné"""
@@ -503,6 +517,8 @@ class DataMiningInterface:
                 map_visualization.clustering_algo = clustering_algo
                 map_visualization.N = int(self.n_common_tags_var.get())
                 map_visualization.show_points = self.show_points_var.get()
+                map_visualization.show_time_plots = self.show_time_plots_var.get()
+                map_visualization.time_grouping = self.time_grouping_var.get()
                 
                 try:
                     map_visualization.main()

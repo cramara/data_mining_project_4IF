@@ -7,10 +7,56 @@ import colorsys
 from collections import Counter
 import webbrowser
 import os
+import plotly.express as px
+
+show_time_plots = True  # Valeur par défaut
+time_grouping = "mois"  # Changer la valeur par défaut en "mois"
+
+def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
+    """Génère un graphique de distribution temporelle pour un cluster"""
+    # Convertir les dates en datetime si nécessaire
+    cluster_data['date_taken'] = pd.to_datetime(cluster_data['date_taken'])
+    
+    # Regrouper selon le choix de l'utilisateur
+    if time_grouping == "mois":
+        # Grouper par mois
+        daily_counts = cluster_data.groupby(cluster_data['date_taken'].dt.to_period('M')).size().reset_index()
+        daily_counts['date_taken'] = daily_counts['date_taken'].astype(str)
+        daily_counts.columns = ['date', 'count']
+        x_title = "Mois"
+    else:  # année
+        # Grouper par année et trier par année
+        daily_counts = cluster_data.groupby(cluster_data['date_taken'].dt.year).size().reset_index()
+        daily_counts = daily_counts.sort_values('date_taken')  # Trier par année
+        daily_counts.columns = ['date', 'count']
+        x_title = "Année"
+    
+    # Créer le graphique avec plotly
+    fig = px.line(daily_counts, x='date', y='count',
+                  title=f'Distribution temporelle du cluster {cluster_name} (ID: {cluster_id})')
+    
+    # Personnaliser le layout
+    fig.update_layout(
+        xaxis_title=x_title,
+        yaxis_title="Nombre de photos",
+        hovermode='x'
+    )
+    
+    # Si c'est un graphique par année, forcer l'affichage de toutes les années
+    if time_grouping == "année":
+        fig.update_xaxes(
+            dtick=1,  # Afficher chaque année
+            type='category'  # Traiter comme des catégories pour éviter l'interpolation
+        )
+    
+    # Sauvegarder le graphique dans le dossier cluster_plots
+    plot_path = os.path.join('cluster_plots', f'cluster_{cluster_id}_distribution.html')
+    fig.write_html(plot_path)
+    return f'cluster_plots/cluster_{cluster_id}_distribution.html'
 
 def main():
     try:
-        global df, clustering_algo, N, show_points, nb_points_cluster
+        global df, clustering_algo, N, show_points, nb_points_cluster, show_time_plots, time_grouping
         
         # print(f"Taille du DataFrame: {df.shape}")
 
@@ -132,7 +178,19 @@ def main():
         for cluster_id in unique_clusters:
             cluster_points[cluster_id] = df[df['cluster'] == cluster_id]
         
-        # Ajouter les zones de clusters avant d'ajouter les points
+        # Créer un dossier pour les graphiques si nécessaire
+        plots_dir = 'cluster_plots'
+        if show_time_plots:
+            if not os.path.exists(plots_dir):
+                os.makedirs(plots_dir)
+            
+            # Nettoyer le dossier des anciens graphiques
+            for file in os.listdir(plots_dir):
+                if file.endswith('.html'):
+                    os.remove(os.path.join(plots_dir, file))
+        
+        # Générer les graphiques pour chaque cluster
+        plot_paths = {}
         for cluster_id in range(n_clusters):
             cluster_data = df[df['cluster'] == cluster_id]
             if len(cluster_data) >= 3:
@@ -147,16 +205,34 @@ def main():
                     cluster_name = cluster_tags[cluster_id]
                     nb_points = len(cluster_data)
                     
-                    # Créer le popup avec le lien vers l'histogramme
-                    popup_content = f"""
-                    <div style="min-width: 200px;">
-                    <b>{cluster_name}</b><br>
-                    Nombre de points : {nb_points}<br>
-                    <a href="#" onclick="window.open('plot_{cluster_id}.html', '_blank'); return false;">
-                        Voir distribution temporelle
-                    </a>
-                    </div>
-                    """
+                    # Générer le popup selon que les graphiques sont activés ou non
+                    if show_time_plots:
+                        # Générer le graphique de distribution
+                        plot_path = generate_time_distribution_plot(
+                            cluster_data, 
+                            cluster_id,
+                            cluster_name
+                        )
+                        plot_paths[cluster_id] = plot_path
+                        
+                        popup_content = f"""
+                        <div style="min-width: 200px;">
+                        <b>{cluster_name}</b><br>
+                        Nombre de points : {nb_points}<br>
+                        <button onclick="window.open('./{plot_path}', 
+                            'Distribution temporelle', 
+                            'width=800,height=600'); return false;">
+                            Voir distribution temporelle
+                        </button>
+                        </div>
+                        """
+                    else:
+                        popup_content = f"""
+                        <div style="min-width: 200px;">
+                        <b>{cluster_name}</b><br>
+                        Nombre de points : {nb_points}
+                        </div>
+                        """
                     
                     folium.Polygon(
                         locations=polygon_points,
@@ -209,6 +285,7 @@ def main():
         carte.save('carte_photos.html')
         webbrowser.open('file://' + os.path.realpath('carte_photos.html'))
         
+
     except Exception as e:
         print(f"Erreur dans map_visualization.main(): {str(e)}")
         raise  # Propager l'erreur vers interface.py
@@ -220,4 +297,5 @@ if __name__ == "__main__":
     clustering_algo = DBSCAN(eps=0.0003, min_samples=5)
     N = 100
     show_points = True
+    nb_points_cluster = 1000
     main() 
