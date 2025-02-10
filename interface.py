@@ -183,6 +183,12 @@ class DataMiningInterface:
         self.kmeans_frame = ttk.Frame(params_frame)
         self.kmeans_frame.grid(row=1, column=0, columnspan=3, pady=5)
         
+        # Initialiser les labels avant de créer les scales
+        self.n_clusters_label = ttk.Label(self.kmeans_frame, text=self.default_values['n_clusters'])
+        self.k_range_label = ttk.Label(self.kmeans_frame, text="2-20")
+        self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
+        self.n_common_tags_label = ttk.Label(params_frame, text=self.default_values['n_common_tags'])
+        
         # Nombre de clusters avec slider
         ttk.Label(self.kmeans_frame, text="Nombre de clusters:").grid(row=0, column=0, sticky="w")
         n_clusters_scale = ttk.Scale(self.kmeans_frame,
@@ -193,8 +199,6 @@ class DataMiningInterface:
                                    command=lambda v: self.update_n_clusters(v))
         n_clusters_scale.grid(row=0, column=1, padx=5, sticky="ew")
         n_clusters_scale.set(int(self.default_values['n_clusters']))
-        
-        self.n_clusters_label = ttk.Label(self.kmeans_frame, text=self.default_values['n_clusters'])
         self.n_clusters_label.grid(row=0, column=2, padx=5)
         
         # Paramètres pour la méthode du coude
@@ -202,25 +206,29 @@ class DataMiningInterface:
         k_range_frame = ttk.Frame(self.kmeans_frame)
         k_range_frame.grid(row=1, column=1, columnspan=2, sticky="ew")
         
+        # Créer d'abord les deux scales sans leur assigner de commande
         self.k_min_scale = ttk.Scale(k_range_frame,
                                     from_=2,
                                     to=20,
                                     orient="horizontal",
-                                    length=95,
-                                    command=lambda v: self.update_k_min(v))
+                                    length=95)
         self.k_min_scale.grid(row=0, column=0, padx=(0,5))
-        self.k_min_scale.set(2)
         
         self.k_max_scale = ttk.Scale(k_range_frame,
                                     from_=2,
                                     to=50,
                                     orient="horizontal",
-                                    length=95,
-                                    command=lambda v: self.update_k_max(v))
+                                    length=95)
         self.k_max_scale.grid(row=0, column=1, padx=(5,0))
+        
+        # Ensuite, configurer les valeurs initiales
+        self.k_min_scale.set(2)
         self.k_max_scale.set(20)
         
-        self.k_range_label = ttk.Label(self.kmeans_frame, text="2-20")
+        # Enfin, ajouter les commandes
+        self.k_min_scale.configure(command=lambda v: self.update_k_min(v))
+        self.k_max_scale.configure(command=lambda v: self.update_k_max(v))
+        
         self.k_range_label.grid(row=1, column=2, padx=5)
         
         # Nombre de points pour le clustering avec slider
@@ -233,8 +241,6 @@ class DataMiningInterface:
                                  command=lambda v: self.update_n_points(v))
         n_points_scale.grid(row=2, column=1, padx=5, sticky="ew")
         n_points_scale.set(int(self.default_values['n_points']))
-        
-        self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
         self.n_points_label.grid(row=2, column=2, padx=5)
         
         # Après le slider de display_points, ajouter la case à cocher
@@ -285,7 +291,6 @@ class DataMiningInterface:
         n_common_tags_scale.grid(row=4, column=1, padx=5, sticky="ew")
         n_common_tags_scale.set(int(self.default_values['n_common_tags']))
         
-        self.n_common_tags_label = ttk.Label(params_frame, text=self.default_values['n_common_tags'])
         self.n_common_tags_label.grid(row=4, column=2, padx=5)
         
         # Bouton de réinitialisation
@@ -698,41 +703,55 @@ class DataMiningInterface:
         """Met à jour le nombre de clusters"""
         val = int(float(value))
         self.n_clusters_var.set(str(val))
-        self.n_clusters_label.config(text=str(val))
+        if self.n_clusters_label:
+            self.n_clusters_label.config(text=str(val))
 
     def update_k_min(self, value):
         """Met à jour k_min"""
         val = int(float(value))
         self.k_min_var.set(str(val))
-        if val >= int(self.k_max_scale.get()):
+        k_max = int(float(self.k_max_scale.get()))
+        
+        # Ajuster k_max si nécessaire
+        if val >= k_max:
             self.k_max_scale.set(val + 1)
-        self.k_range_label.config(text=f"{val}-{self.k_max_scale.get()}")
+            k_max = val + 1
+        
+        self.k_range_label.config(text=f"{val}-{k_max}")
 
     def update_k_max(self, value):
         """Met à jour k_max"""
         val = int(float(value))
         self.k_max_var.set(str(val))
-        if val <= int(self.k_min_scale.get()):
+        k_min = int(float(self.k_min_scale.get()))
+        
+        # Ajuster k_min si nécessaire
+        if val <= k_min:
             self.k_min_scale.set(val - 1)
-        self.k_range_label.config(text=f"{self.k_min_scale.get()}-{val}")
+            k_min = val - 1
+        
+        self.k_range_label.config(text=f"{k_min}-{val}")
 
     def update_n_points(self, value):
         """Met à jour le nombre de points"""
         val = int(float(value))
         self.n_points_var.set(str(val))
-        self.n_points_label.config(text=str(val))
+        if self.n_points_label:
+            self.n_points_label.config(text=str(val))
 
     def update_n_common_tags(self, value):
         """Met à jour le nombre de tags communs"""
         val = int(float(value))
         self.n_common_tags_var.set(str(val))
-        self.n_common_tags_label.config(text=str(val))
+        if self.n_common_tags_label:
+            self.n_common_tags_label.config(text=str(val))
 
     def update_display_points(self, value):
         """Met à jour le nombre de points à afficher"""
         val = int(float(value))
         self.display_points_var.set(str(val))
-        self.display_points_label.config(text=str(val))
+        if self.display_points_label:
+            self.display_points_label.config(text=str(val))
 
 def main():
     root = tk.Tk()
