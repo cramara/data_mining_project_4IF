@@ -8,9 +8,17 @@ from collections import Counter
 import webbrowser
 import os
 import plotly.express as px
+import math
+from collections import defaultdict
+import unicodedata
 
 show_time_plots = True  # Valeur par défaut
 time_grouping = "mois"  # Changer la valeur par défaut en "mois"
+
+def remove_accents(text):
+    text = unicodedata.normalize('NFD', text)
+    text = text.encode('ascii', 'ignore').decode('utf-8')
+    return text
 
 def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
     """Génère un graphique de distribution temporelle pour un cluster"""
@@ -49,6 +57,11 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
                 daily_counts = daily_counts.sort_values('date')
                 x_title = "Année"
             
+                # Vérifier si les données sont vides après le regroupement
+            if daily_counts.empty:
+                print(f"Aucune donnée temporelle pour le cluster {cluster_id}")
+                return None
+
             # Créer le graphique avec plotly
             fig = px.line(daily_counts, x='date', y='count',
                          title=f'Distribution temporelle du cluster {cluster_name} (ID: {cluster_id})')
@@ -101,18 +114,35 @@ def main():
         # Si K-means est utilisé, les clusters commencent à 0 et sont tous positifs
         # Pour DBSCAN, -1 représente le bruit
         
+        all_dataset = []
+
         # Trouver les tags les plus communs dans tout le dataset
         all_dataset_tags = []
         for tags_str in df['tags'].fillna(''):
             tags_list = tags_str.lower().split(',')
             for tag in tags_list:
                 tag = tag.strip()
+                tag = remove_accents(tag)  # Normaliser le tag
                 mots_exclus = ['unknown', 'lyon', '', 'france', 'europe']
                 if tag not in mots_exclus and not any(c.isdigit() for c in tag):
                     subtags = tag.replace('_', ' ').replace('-', ' ').split()
                     all_dataset_tags.extend(subtags)
 
-        # Trouver les N tags les plus communs dans tout le dataset
+        # Trouver les titres les plus communs dans tout le dataset
+        all_dataset_title = []
+        for title_str in df['title'].fillna(''):
+            title_list = tags_str.lower().split(',')
+            for title in title_list:
+                title = title.strip()
+                title = remove_accents(title)  # Normaliser le title
+                mots_exclus = ['unknown', 'lyon', '', 'france', 'europe']
+                if title not in mots_exclus and not any(c.isdigit() for c in title):
+                    subtitle = title.replace('_', ' ').replace('-', ' ').split()
+                    all_dataset_title.extend(subtitle)
+
+        all_dataset.extend(all_dataset_tags + all_dataset_title)
+
+        # Trouver les N tags les plus communs dans tout le dataset (title + tags)
         common_tags = [tag for tag, _ in Counter(all_dataset_tags).most_common(N)]
         print("Tags les plus communs exclus:", common_tags)
 
@@ -127,39 +157,95 @@ def main():
             # Ne pas ajouter le tag recherché aux mots exclus
             mots_exclus.extend(tag for tag in common_tags if tag != search_term)
         else:
-            mots_exclus.extend(common_tags)
+            if keep_search_tag and search_term:
+                mots_exclus.extend(tag for tag in common_tags if tag != search_term)
+            else:
+                pass  # Ne pas exclure les tags communs
         
         print("Mots exclus:", mots_exclus)
 
-        # Trouver le tag le plus représentatif pour chaque cluster
+
+        # Trouver les noms de clusters avec TF-IDF
         cluster_tags = {}
         unique_clusters = sorted(df['cluster'].unique())
-
-        for cluster_id in unique_clusters:
-            # Obtenir tous les tags du cluster
+        
+        # Exclure le cluster de bruit (-1) pour le calcul des fréquences
+        clusters_for_tfidf = [c for c in unique_clusters if c != -1]
+        total_clusters = len(clusters_for_tfidf)
+        
+        # Étape 1: Collecter la fréquence des documents (nombre de clusters où chaque tag apparaît)
+        doc_freq = defaultdict(int)
+        for cluster_id in clusters_for_tfidf:
             cluster_data = df[df['cluster'] == cluster_id]
+            all_tags = []
             
-            # Créer une liste de tous les tags du cluster
+            for tags_str in cluster_data['tags'].fillna(''):
+                tags_list = tags_str.lower().split(',')
+                for tag in tags_list:
+                    tag = tag.strip()
+                    tag = remove_accents(tag)
+                    if tag not in mots_exclus and not any(c.isdigit() for c in tag):
+                        subtags = [tag.replace('_', ' ').replace('-', ' ').strip()]
+                        all_tags.extend(subtags)
+
+            for title_str in cluster_data['title'].fillna(''):
+                title_words = remove_accents(title_str).lower().split()
+                for word in title_words:
+                    word = word.strip()
+                    if word not in mots_exclus and not any(c.isdigit() for c in word):
+                        all_tags.extend(word.split())
+                        
+            unique_tags = set(all_tags)
+            for tag in unique_tags:
+                doc_freq[tag] += 1
+        
+        # Étape 2: Calculer le score TF-IDF pour chaque tag dans chaque cluster
+        for cluster_id in unique_clusters:
+            if cluster_id == -1:
+                cluster_tags[cluster_id] = "Non clustérisé"
+                continue
+            
+            cluster_data = df[df['cluster'] == cluster_id]
             all_tags = []
             for tags_str in cluster_data['tags'].fillna(''):
                 tags_list = tags_str.lower().split(',')
                 for tag in tags_list:
                     tag = tag.strip()
+                    tag = remove_accents(tag)
                     if tag not in mots_exclus and not any(c.isdigit() for c in tag):
                         subtags = tag.replace('_', ' ').replace('-', ' ').split()
                         all_tags.extend(subtags)
             
-            # Compter les occurrences
             tag_counts = Counter(all_tags)
+            scores = {}
+            total_terms = sum(tag_counts.values())
+
+            for tag, count in tag_counts.items():
+                if len(tag) <= 2 or ' ' in tag or tag in mots_exclus:
+                    continue
+                
+                # TF normalisé
+                tf = count / total_terms if total_terms > 0 else 0
+                
+                # IDF ajusté
+                df_count = doc_freq.get(tag, 0)
+                idf = math.log(total_clusters / (df_count + 1e-6))
+                
+                scores[tag] = tf * idf
             
-            # Trouver le tag le plus fréquent (en excluant les tags trop courts)
-            most_common_tags = [(tag, count) for tag, count in tag_counts.most_common(10)
-                               if len(tag) > 2 and ' ' not in tag]  # Ignorer les tags trop courts et ceux avec des espaces
-            
-            if most_common_tags:
-                cluster_tags[cluster_id] = most_common_tags[0][0]
+            # Sélection adaptative
+            if scores:
+                best_score = max(scores.values())
+                threshold = 0.7 * best_score
+                best_tags = [tag.capitalize() for tag, score in scores.items() if score >= threshold]
+                
+                # Récupérer au moins 1 tag pour les petits clusters
+                if not best_tags and scores:
+                    best_tags = [max(scores, key=scores.get).capitalize()]
+                    
+                cluster_tags[cluster_id] = ', '.join(best_tags[:3])
             else:
-                cluster_tags[cluster_id] = f"Cluster{cluster_id}"
+                cluster_tags[cluster_id] = f"Cluster {cluster_id}"
 
         # Nombre de clusters trouvés (excluant le bruit qui est -1)
         n_clusters = len(set(df['cluster'])) - (1 if -1 in df['cluster'] else 0)
