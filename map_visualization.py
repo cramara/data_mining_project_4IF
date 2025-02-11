@@ -26,40 +26,40 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
         # Créer une copie du DataFrame pour éviter les warnings
         cluster_data = cluster_data.copy()
         
-        # Convertir les dates en datetime si nécessaire et gérer les erreurs
         try:
-            cluster_data.loc[:, 'date_taken'] = pd.to_datetime(cluster_data['date_taken'], errors='coerce')
+            # Convertir explicitement la colonne date_taken en datetime
+            cluster_data['date_taken'] = pd.to_datetime(cluster_data['date_taken'], format='%Y-%m-%d %H:%M:%S', errors='coerce')
             
             # Supprimer les lignes avec des dates invalides
             cluster_data = cluster_data.dropna(subset=['date_taken'])
             
             if len(cluster_data) == 0:
+                print(f"Aucune donnée valide pour le cluster {cluster_id}")
                 return None
             
             # Regrouper selon le choix de l'utilisateur
             if time_grouping == "mois":
-                # Grouper par mois en utilisant 'ME' au lieu de 'M'
+                # Grouper par mois
                 daily_counts = (cluster_data.groupby(pd.Grouper(key='date_taken', freq='ME'))
                               .size()
                               .to_frame(name='count')
                               .reset_index())
-                # Formater la date directement
                 daily_counts['date'] = daily_counts['date_taken'].dt.strftime('%Y-%m')
                 x_title = "Mois"
             else:  # année
-                # Grouper par année et trier par année
-                daily_counts = (cluster_data.groupby(cluster_data['date_taken'].dt.year)
+                # Créer directement une colonne année
+                daily_counts = (cluster_data.assign(year=lambda x: x['date_taken'].dt.year)
+                              .groupby('year')
                               .size()
-                              .to_frame(name='count')
-                              .reset_index())
+                              .reset_index(name='count'))
                 daily_counts.columns = ['date', 'count']
-                daily_counts['date'] = daily_counts['date'].astype('str')
+                daily_counts['date'] = daily_counts['date'].astype(str)
                 daily_counts = daily_counts.sort_values('date')
                 x_title = "Année"
             
-                # Vérifier si les données sont vides après le regroupement
+            # Vérifier si les données sont vides après le regroupement
             if daily_counts.empty:
-                print(f"Aucune donnée temporelle pour le cluster {cluster_id}")
+                print(f"Aucune donnée après regroupement pour le cluster {cluster_id}")
                 return None
 
             # Créer le graphique avec plotly
@@ -76,21 +76,24 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
             # Si c'est un graphique par année, forcer l'affichage de toutes les années
             if time_grouping == "année":
                 fig.update_xaxes(
-                    dtick=1,  # Afficher chaque année
-                    type='category'
+                    dtick=1,
+                    type='category',
+                    categoryorder='category ascending'
                 )
             
-            # Sauvegarder le graphique dans le dossier cluster_plots
+            # Sauvegarder le graphique
             plot_path = os.path.join('cluster_plots', f'cluster_{cluster_id}_distribution.html')
             fig.write_html(plot_path)
             return f'cluster_plots/cluster_{cluster_id}_distribution.html'
             
         except Exception as e:
-            print(f"Erreur lors du traitement des données pour le cluster {cluster_id}")
+            print(f"Erreur lors du traitement des données pour le cluster {cluster_id}: {str(e)}")
+            print(f"Types des données: {cluster_data['date_taken'].dtypes}")
+            print(f"Exemple de dates: {cluster_data['date_taken'].head()}")
             return None
             
     except Exception as e:
-        print(f"Erreur lors de la génération du graphique pour le cluster {cluster_id}")
+        print(f"Erreur lors de la génération du graphique pour le cluster {cluster_id}: {str(e)}")
         return None
 
 def main():

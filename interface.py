@@ -296,8 +296,10 @@ class DataMiningInterface:
                                       length=200,
                                       command=lambda v: self.update_n_common_tags(v))
         n_common_tags_scale.grid(row=0, column=1, padx=5, sticky="ew")
-        n_common_tags_scale.set(int(self.default_values['n_common_tags']))
-        self.n_common_tags_label.grid(row=0, column=2, padx=5)
+        
+        # Déplacer le label à côté du slider
+        self.n_common_tags_label = ttk.Label(tags_frame, text=self.default_values['n_common_tags'])
+        self.n_common_tags_label.grid(row=0, column=2, padx=5, sticky="w")
         
         # Options des graphiques temporels
         time_plots_frame = ttk.Frame(display_frame)
@@ -556,9 +558,14 @@ class DataMiningInterface:
                 
                 # Mise à jour du message de succès
                 total_points = self.n_points_var.get()
-                displayed_points = len(display_df)
-                message = f"La carte a été générée avec {displayed_points} points maximum affichés sur {total_points} points maximum"
-                
+                message = f"La carte a été générée avec {total_points} points maximum"
+
+                if self.show_points_var.get():
+                    displayed_points = len(display_df)
+                    message += f" dont {displayed_points} points affichés"
+                else:
+                    message += " (aucun point affiché sur la carte)"
+
                 if search_term:
                     message += f" contenant le tag '{search_term}'"
                 if self.use_date_filter.get():
