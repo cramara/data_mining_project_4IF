@@ -157,18 +157,23 @@ class DataMiningInterface:
                        variable=self.use_date_filter).grid(row=0, column=4, padx=5)
         
     def create_parameters_frame(self):
-        params_frame = ttk.LabelFrame(self.root, text="Paramètres", padding="10")
-        params_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+        # Frame principal pour tous les paramètres
+        main_params_frame = ttk.Frame(self.root)
+        main_params_frame.grid(row=1, column=0, padx=10, pady=5, sticky="nsew")
+        
+        # Frame pour les paramètres de clustering
+        clustering_frame = ttk.LabelFrame(main_params_frame, text="Paramètres de clustering", padding="10")
+        clustering_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
         # Choix de l'algorithme
-        ttk.Label(params_frame, text="Algorithme:").grid(row=0, column=0, sticky="w")
-        algo_combo = ttk.Combobox(params_frame, textvariable=self.algo_var, 
+        ttk.Label(clustering_frame, text="Algorithme:").grid(row=0, column=0, sticky="w")
+        algo_combo = ttk.Combobox(clustering_frame, textvariable=self.algo_var, 
                                 values=["DBSCAN", "K-means"], state="readonly")
         algo_combo.grid(row=0, column=1, padx=5, columnspan=2)
         algo_combo.bind('<<ComboboxSelected>>', self.on_algo_change)
         
         # Frame pour les paramètres DBSCAN
-        self.dbscan_frame = ttk.Frame(params_frame)
+        self.dbscan_frame = ttk.Frame(clustering_frame)
         self.dbscan_frame.grid(row=1, column=0, columnspan=3, pady=5)
         
         # Epsilon avec champ de texte
@@ -180,14 +185,14 @@ class DataMiningInterface:
         ttk.Entry(self.dbscan_frame, textvariable=self.min_samples_var, width=10).grid(row=1, column=1, padx=5)
         
         # Frame pour les paramètres K-means
-        self.kmeans_frame = ttk.Frame(params_frame)
+        self.kmeans_frame = ttk.Frame(clustering_frame)
         self.kmeans_frame.grid(row=1, column=0, columnspan=3, pady=5)
         
         # Initialiser les labels avant de créer les scales
         self.n_clusters_label = ttk.Label(self.kmeans_frame, text=self.default_values['n_clusters'])
         self.k_range_label = ttk.Label(self.kmeans_frame, text="2-20")
-        self.n_points_label = ttk.Label(params_frame, text=self.default_values['n_points'])
-        self.n_common_tags_label = ttk.Label(params_frame, text=self.default_values['n_common_tags'])
+        self.n_points_label = ttk.Label(clustering_frame, text=self.default_values['n_points'])
+        self.n_common_tags_label = ttk.Label(clustering_frame, text=self.default_values['n_common_tags'])
         
         # Nombre de clusters avec slider
         ttk.Label(self.kmeans_frame, text="Nombre de clusters:").grid(row=0, column=0, sticky="w")
@@ -206,46 +211,63 @@ class DataMiningInterface:
         k_range_frame = ttk.Frame(self.kmeans_frame)
         k_range_frame.grid(row=1, column=1, columnspan=2, sticky="ew")
         
-        # Créer d'abord les deux scales sans leur assigner de commande
-        self.k_min_scale = ttk.Scale(k_range_frame,
+        # Frame pour les sliders et leurs valeurs
+        k_min_frame = ttk.Frame(k_range_frame)
+        k_min_frame.grid(row=0, column=0, padx=(0,5))
+        k_max_frame = ttk.Frame(k_range_frame)
+        k_max_frame.grid(row=0, column=1, padx=(5,0))
+        
+        # Créer les labels pour afficher les valeurs
+        self.k_min_value_label = ttk.Label(k_min_frame, text="2")
+        self.k_min_value_label.grid(row=1, column=0)
+        
+        self.k_max_value_label = ttk.Label(k_max_frame, text="20")
+        self.k_max_value_label.grid(row=1, column=0)
+        
+        # Créer les sliders
+        self.k_min_scale = ttk.Scale(k_min_frame,
                                     from_=2,
                                     to=20,
                                     orient="horizontal",
                                     length=95)
-        self.k_min_scale.grid(row=0, column=0, padx=(0,5))
+        self.k_min_scale.grid(row=0, column=0)
         
-        self.k_max_scale = ttk.Scale(k_range_frame,
+        self.k_max_scale = ttk.Scale(k_max_frame,
                                     from_=2,
                                     to=50,
                                     orient="horizontal",
                                     length=95)
-        self.k_max_scale.grid(row=0, column=1, padx=(5,0))
+        self.k_max_scale.grid(row=0, column=0)
         
-        # Ensuite, configurer les valeurs initiales
+        # Configurer les valeurs initiales
         self.k_min_scale.set(2)
         self.k_max_scale.set(20)
         
-        # Enfin, ajouter les commandes
+        # Ajouter les commandes
         self.k_min_scale.configure(command=lambda v: self.update_k_min(v))
         self.k_max_scale.configure(command=lambda v: self.update_k_max(v))
         
         self.k_range_label.grid(row=1, column=2, padx=5)
         
         # Nombre de points pour le clustering avec slider
-        ttk.Label(params_frame, text="Nombre de points pour clustering:").grid(row=2, column=0, sticky="w")
-        n_points_scale = ttk.Scale(params_frame,
+        ttk.Label(clustering_frame, text="Nombre de points pour clustering:").grid(row=4, column=0, sticky="w")
+        n_points_scale = ttk.Scale(clustering_frame,
                                  from_=1000,
                                  to=200000,
                                  orient="horizontal",
                                  length=200,
                                  command=lambda v: self.update_n_points(v))
-        n_points_scale.grid(row=2, column=1, padx=5, sticky="ew")
+        n_points_scale.grid(row=4, column=1, padx=5, sticky="ew")
         n_points_scale.set(int(self.default_values['n_points']))
-        self.n_points_label.grid(row=2, column=2, padx=5)
+        self.n_points_label.grid(row=4, column=2, padx=5)
         
-        # Après le slider de display_points, ajouter la case à cocher
-        points_display_frame = ttk.Frame(params_frame)
-        points_display_frame.grid(row=3, column=0, columnspan=3, sticky="ew")
+        # Frame pour les paramètres d'affichage
+        display_frame = ttk.LabelFrame(main_params_frame, text="Paramètres d'affichage", padding="10")
+        display_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        
+        # Nombre de points à afficher
+        points_display_frame = ttk.Frame(display_frame)
+        points_display_frame.grid(row=0, column=0, columnspan=3, sticky="ew", pady=5)
         
         ttk.Label(points_display_frame, text="Nombre de points à afficher:").grid(row=0, column=0, sticky="w")
         display_points_scale = ttk.Scale(points_display_frame,
@@ -255,7 +277,6 @@ class DataMiningInterface:
                                        length=200,
                                        command=lambda v: self.update_display_points(v))
         display_points_scale.grid(row=0, column=1, padx=5, sticky="ew")
-        
         self.display_points_label = ttk.Label(points_display_frame, text=self.default_values['display_points'])
         self.display_points_label.grid(row=0, column=2, padx=5)
         
@@ -263,39 +284,39 @@ class DataMiningInterface:
         ttk.Checkbutton(points_display_frame, text="Afficher les points", 
                        variable=self.show_points_var).grid(row=1, column=0, columnspan=3, pady=2)
         
-        # Après la case à cocher pour afficher/masquer les points
-        display_options_frame = ttk.Frame(params_frame)
-        display_options_frame.grid(row=5, column=0, columnspan=3, pady=2)
+        # Tags communs à exclure
+        tags_frame = ttk.Frame(display_frame)
+        tags_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=5)
         
-        # Case à cocher pour les graphiques temporels
-        ttk.Checkbutton(display_options_frame, text="Activer graphiques temporels", 
-                        variable=self.show_time_plots_var).grid(row=0, column=0, padx=5)
-        
-        # Choix du regroupement temporel
-        ttk.Label(display_options_frame, text="Regrouper par:").grid(row=0, column=1, padx=5)
-        time_grouping = ttk.Combobox(display_options_frame, 
-                                    textvariable=self.time_grouping_var,
-                                    values=["mois", "année"],  # Seulement mois et année
-                                    state="readonly",
-                                    width=10)
-        time_grouping.grid(row=0, column=2, padx=5)
-        
-        # Tags communs avec slider
-        ttk.Label(params_frame, text="Tags communs à exclure:").grid(row=4, column=0, sticky="w")
-        n_common_tags_scale = ttk.Scale(params_frame,
+        ttk.Label(tags_frame, text="Tags communs à exclure:").grid(row=0, column=0, sticky="w")
+        n_common_tags_scale = ttk.Scale(tags_frame,
                                       from_=0,
                                       to=200,
                                       orient="horizontal",
                                       length=200,
                                       command=lambda v: self.update_n_common_tags(v))
-        n_common_tags_scale.grid(row=4, column=1, padx=5, sticky="ew")
+        n_common_tags_scale.grid(row=0, column=1, padx=5, sticky="ew")
         n_common_tags_scale.set(int(self.default_values['n_common_tags']))
+        self.n_common_tags_label.grid(row=0, column=2, padx=5)
         
-        self.n_common_tags_label.grid(row=4, column=2, padx=5)
+        # Options des graphiques temporels
+        time_plots_frame = ttk.Frame(display_frame)
+        time_plots_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=5)
+        
+        ttk.Checkbutton(time_plots_frame, text="Activer graphiques temporels", 
+                        variable=self.show_time_plots_var).grid(row=0, column=0, padx=5)
+        
+        ttk.Label(time_plots_frame, text="Regrouper par:").grid(row=0, column=1, padx=5)
+        time_grouping = ttk.Combobox(time_plots_frame, 
+                                    textvariable=self.time_grouping_var,
+                                    values=["mois", "année"],
+                                    state="readonly",
+                                    width=10)
+        time_grouping.grid(row=0, column=2, padx=5)
         
         # Bouton de réinitialisation
-        ttk.Button(params_frame, text="Réinitialiser les paramètres", 
-                  command=self.reset_to_defaults).grid(row=6, column=0, columnspan=3, pady=10)
+        ttk.Button(main_params_frame, text="Réinitialiser les paramètres", 
+                  command=self.reset_to_defaults).grid(row=2, column=0, pady=10)
         
         # Afficher les paramètres de l'algorithme sélectionné
         self.on_algo_change(None)
@@ -536,7 +557,7 @@ class DataMiningInterface:
                 # Mise à jour du message de succès
                 total_points = self.n_points_var.get()
                 displayed_points = len(display_df)
-                message = f"La carte a été générée avec {displayed_points} points affichés sur {total_points} points"
+                message = f"La carte a été générée avec {displayed_points} points maximum affichés sur {total_points} points maximum"
                 
                 if search_term:
                     message += f" contenant le tag '{search_term}'"
@@ -584,27 +605,59 @@ class DataMiningInterface:
                     "Un grand nombre de clusters peut prendre beaucoup de temps à calculer. Continuer?"):
                     return
             
+            # Créer une fenêtre de chargement plus grande
+            progress_window = tk.Toplevel(self.root)
+            progress_window.title("Calcul de la méthode du coude")
+            progress_window.geometry("400x200")  # Fenêtre plus grande
+            
+            # Centrer la fenêtre
+            progress_window.transient(self.root)
+            progress_window.grab_set()
+            progress_window.geometry("+%d+%d" % (
+                self.root.winfo_rootx() + self.root.winfo_width()//2 - 200,
+                self.root.winfo_rooty() + self.root.winfo_height()//2 - 100))
+            
+            # Frame pour organiser les éléments
+            info_frame = ttk.Frame(progress_window, padding="20")
+            info_frame.pack(fill='both', expand=True)
+            
+            # Titre
+            ttk.Label(info_frame, 
+                     text="Calcul de la méthode du coude en cours...",
+                     font=('Helvetica', 12, 'bold')).pack(pady=(0, 20))
+            
+            # Label pour le statut
+            progress_label = ttk.Label(info_frame, text="Initialisation...", font=('Helvetica', 10))
+            progress_label.pack(pady=(0, 10))
+            
+            # Barre de progression
+            progress_var = tk.DoubleVar()
+            progress_bar = ttk.Progressbar(info_frame, 
+                                         variable=progress_var,
+                                         maximum=k_max - k_min + 1,
+                                         length=300)
+            progress_bar.pack(pady=(0, 10))
+            
+            # Label pour le nombre de clusters en cours
+            cluster_label = ttk.Label(info_frame, text="", font=('Helvetica', 10))
+            cluster_label.pack()
+            
+            progress_window.update()
+            
+            # Charger les données et faire les calculs
             df = pd.read_csv(self.data_file_path.get(), low_memory=False)
             df = df.head(int(self.n_points_var.get()))
             X = df[['lat', 'long']].values
             
-            # Calculer l'inertie et le score silhouette pour la plage de k spécifiée
+            # Calculer l'inertie et le score silhouette
             k_range = range(k_min, k_max + 1)
             inertias = []
             silhouette_scores = []
             
-            # Ajouter une barre de progression
-            progress_window = tk.Toplevel(self.root)
-            progress_window.title("Calcul en cours...")
-            progress_var = tk.DoubleVar()
-            ttk.Progressbar(progress_window, variable=progress_var, 
-                           maximum=len(k_range)).pack(padx=10, pady=10)
-            progress_label = ttk.Label(progress_window, text="Calcul des clusters...")
-            progress_label.pack(pady=5)
-            
             for i, k in enumerate(k_range):
                 progress_var.set(i)
-                progress_label.config(text=f"Calcul pour k={k}...")
+                progress_label.config(text=f"Calcul des clusters...")
+                cluster_label.config(text=f"Nombre de clusters: {k}")
                 progress_window.update()
                 
                 kmeans = KMeans(n_clusters=k, random_state=42)
@@ -710,6 +763,7 @@ class DataMiningInterface:
         """Met à jour k_min"""
         val = int(float(value))
         self.k_min_var.set(str(val))
+        self.k_min_value_label.config(text=str(val))
         k_max = int(float(self.k_max_scale.get()))
         
         # Ajuster k_max si nécessaire
@@ -723,6 +777,7 @@ class DataMiningInterface:
         """Met à jour k_max"""
         val = int(float(value))
         self.k_max_var.set(str(val))
+        self.k_max_value_label.config(text=str(val))
         k_min = int(float(self.k_min_scale.get()))
         
         # Ajuster k_min si nécessaire
