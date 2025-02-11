@@ -111,7 +111,7 @@ class DataMiningInterface:
         
         ttk.Label(suggestions_frame, text="Suggestions:").grid(row=0, column=0, padx=2)
         
-        suggestions = ["fete des lumieres", "insa", "bellecour", "confluence"]
+        suggestions = ["lumieres", "insa", "bellecour", "confluence"]
         for i, tag in enumerate(suggestions):
             ttk.Button(suggestions_frame, text=tag, 
                       command=lambda t=tag: self.apply_suggestion(t)).grid(row=0, column=i+1, padx=2)
