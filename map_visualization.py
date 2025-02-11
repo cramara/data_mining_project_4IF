@@ -13,7 +13,7 @@ from collections import defaultdict
 import unicodedata
 
 show_time_plots = True  # Valeur par défaut
-time_grouping = "mois"  # Changer la valeur par défaut en "mois"
+time_grouping = "mois"  # Valeur par défaut
 
 def remove_accents(text):
     text = unicodedata.normalize('NFD', text)
@@ -41,7 +41,7 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
                 # Grouper par mois en utilisant 'ME' au lieu de 'M'
                 daily_counts = (cluster_data.groupby(pd.Grouper(key='date_taken', freq='ME'))
                               .size()
-                              .to_frame(name='count')  # Utiliser to_frame au lieu de reset_index
+                              .to_frame(name='count')
                               .reset_index())
                 # Formater la date directement
                 daily_counts['date'] = daily_counts['date_taken'].dt.strftime('%Y-%m')
@@ -50,10 +50,10 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
                 # Grouper par année et trier par année
                 daily_counts = (cluster_data.groupby(cluster_data['date_taken'].dt.year)
                               .size()
-                              .to_frame(name='count')  # Utiliser to_frame au lieu de reset_index
+                              .to_frame(name='count')
                               .reset_index())
                 daily_counts.columns = ['date', 'count']
-                daily_counts['date'] = daily_counts['date'].astype('str')  # Convertir en string
+                daily_counts['date'] = daily_counts['date'].astype('str')
                 daily_counts = daily_counts.sort_values('date')
                 x_title = "Année"
             
@@ -77,7 +77,7 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
             if time_grouping == "année":
                 fig.update_xaxes(
                     dtick=1,  # Afficher chaque année
-                    type='category'  # Traiter comme des catégories pour éviter l'interpolation
+                    type='category'
                 )
             
             # Sauvegarder le graphique dans le dossier cluster_plots
@@ -96,8 +96,6 @@ def generate_time_distribution_plot(cluster_data, cluster_id, cluster_name):
 def main():
     try:
         global df, clustering_algo, N, show_points, nb_points_cluster, show_time_plots, time_grouping
-        
-        # print(f"Taille du DataFrame: {df.shape}")
 
         df = df.sample(n=min(int(nb_points_cluster), len(df)), random_state=42)
 
@@ -325,7 +323,7 @@ def main():
                             cluster_id,
                             cluster_name
                         )
-                        if plot_path:  # Vérifier que le graphique a été généré avec succès
+                        if plot_path: 
                             plot_paths[cluster_id] = plot_path
                             popup_content = f"""
                             <div style="min-width: 200px;">
